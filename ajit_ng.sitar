@@ -1,0 +1,410 @@
+//A Shift register consists of a
+//producer, connected to a consumer through 
+//an array of shift register stages.
+//The number of stages and delay of 
+//each stage are parameters
+
+module Top
+	submodule_array cpu[2] : CPU<12>    	//Instantiate a memory module with <size=2 MB,delay=10>
+    submodule dcache : DCACHE
+    submodule icache : ICACHE
+
+    net_array d_context[2]: capacity 1 width 8 
+    net_array d_asi[2] : capacity 1 width 8
+    net_array d_addr[2] : capacity 1 width 32
+    net_array d_request_type[2] : capacity 1 width 8
+    net_array d_byte_mask[2] : capacity 1 width 8
+    net_array d_write_data[2] : capacity 1 width 64
+    net_array d_mae[2] : capacity 1 width 8
+    net_array d_read_data[2] : capacity 1 width 64    
+	net_array d_mmu_fsr[2] : capacity 1 width 32
+    
+  	net_array i_context[2]: capacity 1 width 8    
+    net_array	i_asi[2]: capacity 1 width 8
+    net_array i_addr[2]: capacity 1 width 32
+    net_array i_request_type[2]: capacity 1 width 8
+    net_array i_byte_mask[2]: capacity 1 width 8
+    net_array i_mae[2]: capacity 1 width 8
+    net_array inst_pair[2]: capacity 1 width 64
+	net_array i_mmu_fsr[2]: capacity 1 width 32
+    
+    for i in 0 to 1
+        
+        // CPU and D Cache
+        cpu[i].d_context => d_context[i]
+        cpu[i].d_asi => d_asi[i]
+        cpu[i].d_addr => d_addr[i]
+        cpu[i].d_request_type => d_request_type[i]
+        cpu[i].d_byte_mask => d_byte_mask[i]
+        cpu[i].d_write_data => d_write_data[i]
+        cpu[i].d_mae_in <= d_mae[i]
+        cpu[i].d_read_data <= d_read_data[i]
+        cpu[i].d_mmu_fsr <= d_mmu_fsr[i]
+        
+        dcache.context[i] <= d_context[i]
+        dcache.asi[i] <= d_asi[i]
+        dcache.addr[i] <= d_addr[i]
+        dcache.request_type[i] <= d_request_type[i]
+        dcache.byte_mask[i] <= d_byte_mask[i]
+        dcache.write_data[i] <= d_write_data[i]
+        dcache.mae_out[i] => d_mae[i]
+        dcache.read_data[i] => d_read_data[i]
+        dcache.mmu_fsr[i] => d_mmu_fsr[i]
+        
+        // CPU and I Cache
+        cpu[i].i_context => i_context[i]
+        cpu[i].i_asi => i_asi[i]
+        cpu[i].i_addr => i_addr[i]
+        cpu[i].i_request_type => i_request_type[i]
+        cpu[i].i_byte_mask => i_byte_mask[i]
+        cpu[i].i_mae_in <= i_mae[i]
+        cpu[i].inst_pair <= inst_pair[i]
+        cpu[i].i_mmu_fsr <= i_mmu_fsr[i]
+        
+        icache.context[i] <= i_context[i]
+        icache.asi[i] <= i_asi[i]
+        icache.addr[i] <= i_addr[i]
+        icache.request_type[i] <= i_request_type[i]
+        icache.byte_mask[i] <= i_byte_mask[i]
+        icache.mae_out[i] => i_mae[i]
+        icache.inst_pair[i] => inst_pair[i]
+        icache.mmu_fsr[i] => i_mmu_fsr[i]
+    
+    end for
+
+end module
+    
+module CPU
+	parameter int CORE_ID = 0
+	parameter int CPU_ID = 0
+    parameter int THREAD_ID = 0
+	parameter uint32_t isa_mode = 32
+	parameter int bp_table_size = 16
+	parameter uint8_t report_traps = 0
+    parameter uint32_t init_pc = 0
+
+    //defne ports for D Cache
+	outport d_context: width 8    
+    outport	d_asi : width 8
+    outport d_addr : width 32
+    outport d_request_type : width 8
+    outport d_byte_mask : width 8
+    outport d_write_data : width 64
+    inport d_mae_in : width 8
+    inport d_read_data : width 64    
+	inport d_mmu_fsr : width 32
+
+    //define ports for I cache
+	outport i_context: width 8    
+    outport	i_asi : width 8
+    outport i_addr : width 32
+    outport i_request_type : width 8
+    outport i_byte_mask : width 8
+    inport i_mae_in : width 8
+    inport inst_pair : width 64
+	inport i_mmu_fsr : width 32
+    
+    include $extern "C" {
+    #include "cpu.h"
+    }
+    $
+    include $extern void init_cpu();$
+    include $extern void cpu();$
+    include $extern thread_local state current_state;$
+    decl $uint8_t mae;$
+    decl $token<sizeof(uint8_t)> mae_token;$
+    
+
+    
+behavior
+
+    $init_cpu();$;
+
+    $
+    ThreadState* thread_state;
+    thread_state = makeThreadState(CORE_ID, THREAD_ID, isa_mode, bp_table_size, report_traps, init_pc);
+    $;
+
+	do
+        
+        $
+		thread_state->addr_space = (getBit32(thread_state->status_reg.psr, 7) == 0) ? 8 : 9; // Supervisor bit
+
+		uint8_t skip_fetch = !(thread_state->mode == _EXECUTE_MODE_);
+		// Only MAE trap from fetchInstruction
+		uint8_t post_fetch_trap=0;
+		int is_buffer_hit;
+		
+		thread_state->mmu_fsr = 0;
+        $;
+        
+		if(!skip_fetch)
+		{
+			$
+			//clear register-update flags 
+			//(which maintain information for logging)
+			//at the start of this instruction cycle.
+			clearStateUpdateFlags(thread_state);
+			thread_state->reg_update_flags.pc = thread_state->status_reg.pc;
+			
+			is_buffer_hit = fetchInstruction_split_1(thread_state, thread_state->addr_space, thread_state->status_reg.pc, &(thread_state->instruction),
+								(void *) &context, (void *) &asi, (void *) &addr, (void *) &request_type, (void *) &byte_mask, (void *) &write_data ); //memory_read
+            $
+            done_pull = 0;
+            
+            do
+                wait until (this_phase==0);
+                $done_pull=mae_in.pull(mae_token);$;
+                if(not done_pull) then wait end if;
+            while(not done_pull) end do;   
+            wait until (this_phase==1);
+
+            $
+            memcpy(&mae, mae_token.data(), sizeof(uint8_t));
+			post_fetch_trap = fetchInstruction_split_2(thread_state, thread_state->addr_space, thread_state->status_reg.pc, &(thread_state->instruction),
+								&(thread_state->mmu_fsr), is_buffer_hit, mae, (void *)&inst_pair, (void *)&mmu_fsr ); //memory_read
+
+			//================================
+			//increment count of instructions fetched
+			(thread_state->num_ifetches)++;
+            $;
+            
+			if((thread_state->reporting_interval > 0) && ((thread_state->num_ifetches)%(thread_state->reporting_interval)==0) )
+			{
+				fprintf(stderr,"\n==============================================\n");
+				fprintf(stderr,"Real time = %s\n",ctime(&simulation_time));
+				fprintf(stderr,"Cycle-count estimate = %lu\n",getCycleEstimate(thread_state));
+				fprintf(stderr,"num_ifetches = %lu\n",thread_state->num_ifetches);
+				fprintf(stderr,"num_traps = %u\n",thread_state->num_traps);
+				fprintf(stderr,"PC=0x%x\n",thread_state->status_reg.pc);
+				fprintf(stderr,"nPC=0x%x\n",thread_state->status_reg.npc);
+				fprintf(stderr,"trap_vector=0x%x\n",thread_state->trap_vector);
+				fprintf(stderr,"==============================================\n");
+			}
+
+			//================================
+
+			thread_state->trap_vector = setBit32(thread_state->trap_vector, _MAE_, post_fetch_trap);
+			#ifdef DEBUG
+			fprintf(stderr,"Fetched instruction 0x%x at PC = 0x%x\n",thread_state->instruction, thread_state->status_reg.pc);
+			#endif
+
+			// update mmu fsr, far
+			// This is done separately to match the behaviour of
+			// the instruction pipeline.
+			if(thread_state->mmu_fsr != 0)
+				updateMmuFsrFar(thread_state->core_id, 
+							thread_state->thread_id,
+							getThreadContext(thread_state),
+							thread_state->mmu_state, 
+							thread_state->dcache,
+							thread_state->mmu_fsr, thread_state->status_reg.pc);
+		}
+
+		uint8_t annul_trap = getBit32(thread_state->trap_vector, _ANNUL_);
+		uint8_t update_post_fetch_trap = !skip_fetch && post_fetch_trap && !annul_trap;
+
+		if(update_post_fetch_trap)
+		{
+			thread_state->trap_vector = setBit32(thread_state->trap_vector, _TRAP_, 1);
+			thread_state->trap_vector = setBit32(thread_state->trap_vector, _INSTRUCTION_ACCESS_EXCEPTION_, 1);
+		}
+
+		uint8_t annul_inst = !skip_fetch && annul_trap; //Annul the current instruction
+		
+		if(annul_inst)
+		{
+			thread_state->trap_vector    =  setBit32(thread_state->trap_vector, _ANNUL_, 0) ;
+			thread_state->status_reg.pc  =  thread_state->status_reg.npc ;
+			thread_state->status_reg.npc =  thread_state->status_reg.npc + 4 ;
+			#ifdef DEBUG
+			fprintf(stderr,"\tcurrent instruction is annulled\n");
+			#endif
+
+		}
+
+		uint8_t skip_decode = skip_fetch || post_fetch_trap || annul_trap;
+
+		if(!skip_decode)
+		{
+			inform_HW_server(thread_state, GDB_IFETCH, 0);
+		}
+
+		uint8_t fp_uimp_inst = 0;
+		uint8_t fp_invalid_reg = 0;	//to check fp_invalid_reg exception
+
+		if(!skip_decode)
+			decodeInstruction(thread_state->instruction, thread_state->isa_mode,
+						&opcode, 
+						thread_state->trap_vector, 
+						&rs1, &rs2, &simm13, 
+						&shcnt, &disp30, 
+						&disp22, &software_trap, 
+						&rd, &i, &a, &asi, &inst_type, 
+						&fp_uimp_inst, &vector_data_type);
+
+		// Generating Invalid_FP_Register trap
+		if(fp_uimp_inst) {
+			thread_state->trap_vector = setBit32(thread_state->trap_vector, _TRAP_, 1) ;
+			thread_state->trap_vector = setBit32(thread_state->trap_vector, _FP_EXCEPTION_, 1) ;
+			thread_state->status_reg.fsr = setSlice32(thread_state->status_reg.fsr, 16, 14, _UNIMPLEMENTED_FPOP_);
+		}
+
+		flags = 0;
+		flags = ((a == 1) ? setBit8(flags, _ANNUL_FLAG_, 1) : flags);
+
+		uint8_t cwp = getSlice32(thread_state->status_reg.psr, 4, 0);
+		if(!skip_decode)
+			readOperands(thread_state->register_file,
+					opcode, rs1, rs2, rd, simm13, shcnt, 
+					disp30, disp22, software_trap, i, &operand2_3, &operand2_2,
+					&operand2_1, &operand2_0, &operand1_3, &operand1_2, 
+					&operand1_1, &operand1_0, inst_type, cwp, 
+					&data1, &data0, &fp_invalid_reg);
+
+		// Generating Invalid_FP_Register trap
+		if(fp_invalid_reg) {
+			thread_state->trap_vector = setBit32(thread_state->trap_vector, _TRAP_, 1) ;
+			thread_state->trap_vector = setBit32(thread_state->trap_vector, _FP_EXCEPTION_, 1) ;
+			thread_state->status_reg.fsr = setSlice32(thread_state->status_reg.fsr, 16, 14, _INVALID_FP_REGISTER_);
+		}
+
+		uint8_t is_fp_op = (inst_type == _FPop1_INS_) || (inst_type == _FPop2_INS_);
+
+		uint8_t skip_fp_execute = (skip_decode || !is_fp_op);
+		uint32_t post_fp_execute_trap_vector = 0;
+		if(!skip_fp_execute)
+		{
+			post_fp_execute_trap_vector = 
+				completeFPExecution(thread_state,  opcode, 
+						operand2_3, operand2_2, operand2_1, operand2_0,  
+						operand1_3, operand1_2, operand1_1, operand1_0, 
+						rd, &(thread_state->status_reg), thread_state->trap_vector);
+			thread_state->trap_vector = post_fp_execute_trap_vector;
+		}
+
+		uint8_t skip_execute = (skip_decode || is_fp_op);
+		uint32_t post_execute_trap_vector = 0;
+
+		uint8_t save_flag = 0;
+		uint8_t restore_flag = 0;
+
+		if(!skip_execute)
+		{
+			//Execute instruction 
+			post_execute_trap_vector = 
+				executeInstruction( thread_state,
+							opcode, 
+							operand2_0, operand2_1, 
+							operand1_0, operand1_1, 
+							&result_h, &result_l,
+							&flags, rs1, rd, asi, i,
+							data1, data0, vector_data_type);
+
+			thread_state->trap_vector = post_execute_trap_vector;
+			save_flag = (opcode == _SAVE_);
+			restore_flag = (opcode == _RESTORE_);
+		}
+		uint8_t post_execute_trap = getBit32(thread_state->trap_vector, _TRAP_);
+
+
+		uint8_t skip_write_back = skip_execute || post_execute_trap || !getBit8(flags, _NEED_WRITE_BACK_);
+		if(!skip_write_back)
+		{
+			writeBackResult(thread_state->register_file, rd, result_h, result_l, flags, getSlice32(thread_state->status_reg.psr, 4, 0), thread_state->status_reg.pc, &(thread_state->reg_update_flags));
+		}
+       			
+		
+		if(!skip_fetch && (getBit32(thread_state->trap_vector, _TRAP_)==0))
+		{
+			increment_instruction_count(thread_state);
+
+			if((save_flag || restore_flag) && thread_state->report_traps)
+			{
+				fprintf(stderr,"Info: at pc=0x%x, %s.. now fp=0x%x, sp=0x%x, wim=0x%x, psr=0x%x\n", thread_state->status_reg.pc,  (save_flag ? "save" : "restore"),
+						frame_pointer(thread_state), stack_pointer(thread_state),
+						thread_state->status_reg.wim,
+						thread_state->status_reg.psr);
+			}
+			else if(thread_state->report_traps)
+			{
+				fprintf(stderr,"Info: at pc=0x%x, now fp=0x%x, sp=0x%x, wim=0x%x, psr=0x%x\n", 
+						thread_state->status_reg.pc,  
+						frame_pointer(thread_state), stack_pointer(thread_state),
+						thread_state->status_reg.wim,
+						thread_state->status_reg.psr);
+			}
+
+			//if logging is enabled,
+			//Compute a signature containing information about
+			//processor state updated by this instruction
+			//and send it out to the logger.
+			if(is_logging_enabled())
+			{
+				generateLogMessage(thread_state);
+			}
+		}
+
+		uint8_t update_pc = (!skip_execute || !skip_fp_execute) && !post_execute_trap && !isBranchInstruction(opcode, inst_type);
+		if(update_pc)
+		{
+			thread_state->status_reg.pc = thread_state->status_reg.npc ;
+			thread_state->status_reg.npc = thread_state->status_reg.npc + 4 ;
+		}	
+	
+	$;
+			
+	while(1) end do;
+
+end behavior
+end module
+
+
+module DCACHE
+	parameter int CORE_ID = 0
+	parameter int CPU_ID = 0
+	parameter uint32_t isa_mode = 32
+	parameter int bp_table_size = 16
+	parameter uint8_t report_traps = 0
+    parameter uint32_t init_pc = 0
+
+	inport_array context[2]: width 8    
+    inport_array	asi[2] : width 8
+    inport_array addr[2] : width 32
+    inport_array request_type[2] : width 8
+    inport_array byte_mask[2] : width 8
+    inport_array write_data[2] : width 64
+	
+    outport_array mae_out[2] : width 8
+    outport_array read_data[2] : width 64
+	
+behavior
+
+end behavior
+
+end module
+
+module ICACHE
+	parameter int CORE_ID = 0
+	parameter int CPU_ID = 0
+	parameter uint32_t isa_mode = 32
+	parameter int bp_table_size = 16
+	parameter uint8_t report_traps = 0
+    parameter uint32_t init_pc = 0
+    
+	inport_array context[2]: width 8
+    inport_array	asi[2] : width 8
+    inport_array addr[2] : width 32
+    inport_array request_type[2] : width 8
+    inport_array byte_mask[2] : width 8
+    inport_array write_data[2] : width 64
+	
+    outport_array mae_out[2] : width 8
+    outport_array inst_pair[2] : width 64
+	outport_array mmu_fsr[2] : width 32
+	
+behavior
+
+end behavior
+
+end module
