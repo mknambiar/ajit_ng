@@ -210,7 +210,7 @@ void updateMmuFsrFar_push(
 			uint8_t context,
 			uint32_t mmu_fsr, uint32_t mmu_far,
 				(void *) context_port, (void *) asi_port, (void *) addr_port, (void *) request_type_port, 
-				(void *) byte_mask_port)
+				(void *) byte_mask_port, (void *) write_data_port)
 {
 	uint64_t data64 = 0;
 	uint8_t mae;
@@ -221,7 +221,6 @@ void updateMmuFsrFar_push(
 	data64 = setSlice64(data64, 31,0,  mmu_far);
     
     // This should be a function by itself
-    context = getThreadContext(s);
     rc = pushchar(context_port, context, sync);
     assert(rc == true);	
     rc = pushchar(asi_port, asi, sync); 
@@ -229,8 +228,10 @@ void updateMmuFsrFar_push(
     rc = pushword(addr_port, addr, sync); 
     assert(rc == true);		
     rc = pushchar(request_type_port, REQUEST_TYPE_WRFSRFAR, sync); 
-    assert(rc == true);		    
+    assert(rc == true);		
     rc = pushchar(byte_mask_port, 0xff, sync); 
+    assert(rc == true);		    
+    rc = pushdword(write_data_port, data64, sync); 
     assert(rc == true);		    
         
 }
@@ -300,12 +301,14 @@ void writeDataBase(int core_id, int cpu_id, uint8_t context, MmuState* ms, Write
 }
 
 void writeData64(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
-			 uint8_t asi, uint32_t addr, uint8_t byte_mask, uint64_t data, uint8_t* mae)
+			 uint8_t asi, uint32_t 
+             addr, uint8_t byte_mask, uint64_t data, uint8_t* mae)
 {
 	writeData64Base(core_id, cpu_id, context, ms, dcache, 0,asi,addr,byte_mask, data, mae);
 }
 
-void writeData(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
+void 
+             (int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
 			 uint8_t asi, uint32_t addr, uint8_t byte_mask, uint32_t data, uint8_t* mae)
 {
 	writeDataBase(core_id, cpu_id, context, ms, dcache, 0, asi,addr,byte_mask, data, mae);
