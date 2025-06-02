@@ -145,7 +145,7 @@ behavior
 			thread_state->reg_update_flags.pc = thread_state->status_reg.pc;
 			
 			is_buffer_hit = fetchInstruction_split_1(thread_state, thread_state->addr_space, thread_state->status_reg.pc, &(thread_state->instruction),
-								(void *) &context, (void *) &asi, (void *) &addr, (void *) &request_type, (void *) &byte_mask, (void *) &write_data ); //memory_read
+								(void *) &i_context, (void *) &i_asi, (void *) &i_addr, (void *) &i_request_type, (void *) &i_byte_mask ); //memory_read
             $
             done_pull = 0;
             
@@ -192,7 +192,7 @@ behavior
 			if(thread_state->mmu_fsr != 0) {
 				updateMmuFsrFar_push(getThreadContext(thread_state),
                     thread_state->mmu_fsr, thread_state->status_reg.pc,
-                    (void *) &context, (void *) &asi, (void *) &addr, (void *) &request_type, (void *) &byte_mask, (void *) &write_data );
+                    (void *) &context, (void *) &asi, (void *) &addr, (void *) &request_type, (void *) &byte_mask, (void *) &d_write_data );
                 $
                     done_pull = 0;
                     
@@ -203,7 +203,7 @@ behavior
                     while(not done_pull) end do;   
                     wait until (this_phase==1);
                 
-                memcpy(&dcache_read_data, d_read_data.data(), sizeof(uint64_t));
+                    memcpy(&dcache_read_data, d_read_data.data(), sizeof(uint64_t));
                 $;
             }
 		}
