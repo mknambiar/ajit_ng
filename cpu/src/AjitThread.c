@@ -919,7 +919,7 @@ uint8_t fetchInstruction_split_2(ThreadState* s,
         
         rc = pulldword(inst_pair_port, &ipair, sync);
         assert(rc == true);        
-        rc = pulldword(mmu_fsr_port, mmu_fsr, sync);
+        rc = pullword(mmu_fsr_port, mmu_fsr, sync);
         assert(rc == true);        
         
 		if(s->i_buffer != NULL)
