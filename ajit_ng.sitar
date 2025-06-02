@@ -17,7 +17,6 @@ module Top
     net_array d_write_data[2] : capacity 1 width 64
     net_array d_mae[2] : capacity 1 width 8
     net_array d_read_data[2] : capacity 1 width 64    
-	net_array d_mmu_fsr[2] : capacity 1 width 32
     
   	net_array i_context[2]: capacity 1 width 8    
     net_array	i_asi[2]: capacity 1 width 8
@@ -39,7 +38,6 @@ module Top
         cpu[i].d_write_data => d_write_data[i]
         cpu[i].d_mae_in <= d_mae[i]
         cpu[i].d_read_data <= d_read_data[i]
-        cpu[i].d_mmu_fsr <= d_mmu_fsr[i]
         
         dcache.context[i] <= d_context[i]
         dcache.asi[i] <= d_asi[i]
@@ -49,7 +47,6 @@ module Top
         dcache.write_data[i] <= d_write_data[i]
         dcache.mae_out[i] => d_mae[i]
         dcache.read_data[i] => d_read_data[i]
-        dcache.mmu_fsr[i] => d_mmu_fsr[i]
         
         // CPU and I Cache
         cpu[i].i_context => i_context[i]
@@ -92,7 +89,6 @@ module CPU
     outport d_write_data : width 64
     inport d_mae_in : width 8
     inport d_read_data : width 64    
-	inport d_mmu_fsr : width 32
 
     //define ports for I cache
 	outport i_context: width 8    
@@ -111,7 +107,8 @@ module CPU
     include $extern void init_cpu();$
     include $extern void cpu();$
     include $extern thread_local state current_state;$
-    decl $uint8_t mae;$
+    decl $uint8_t mae;$;
+    decl $uint64_t dcache_read_data;$;
     decl $token<sizeof(uint8_t)> mae_token;$
     
 
@@ -162,7 +159,7 @@ behavior
             $
             memcpy(&mae, mae_token.data(), sizeof(uint8_t));
 			post_fetch_trap = fetchInstruction_split_2(thread_state, thread_state->addr_space, thread_state->status_reg.pc, &(thread_state->instruction),
-								&(thread_state->mmu_fsr), is_buffer_hit, mae, (void *)&inst_pair, (void *)&mmu_fsr ); //memory_read
+								&(thread_state->mmu_fsr), is_buffer_hit, mae, (void *)&inst_pair, (void *)&i_mmu_fsr ); //memory_read
 
 			//================================
 			//increment count of instructions fetched
@@ -192,13 +189,23 @@ behavior
 			// update mmu fsr, far
 			// This is done separately to match the behaviour of
 			// the instruction pipeline.
-			if(thread_state->mmu_fsr != 0)
-				updateMmuFsrFar(thread_state->core_id, 
-							thread_state->thread_id,
-							getThreadContext(thread_state),
-							thread_state->mmu_state, 
-							thread_state->dcache,
-							thread_state->mmu_fsr, thread_state->status_reg.pc);
+			if(thread_state->mmu_fsr != 0) {
+				updateMmuFsrFar_push(getThreadContext(thread_state),
+                    thread_state->mmu_fsr, thread_state->status_reg.pc,
+                    (void *) &context, (void *) &asi, (void *) &addr, (void *) &request_type, (void *) &byte_mask, (void *) &write_data );
+                $
+                    done_pull = 0;
+                    
+                    do
+                        wait until (this_phase==0);
+                        $done_pull=mae_in.pull(mae_token);$;
+                        if(not done_pull) then wait end if;
+                    while(not done_pull) end do;   
+                    wait until (this_phase==1);
+                
+                memcpy(&dcache_read_data, d_read_data.data(), sizeof(uint64_t));
+                $;
+            }
 		}
 
 		uint8_t annul_trap = getBit32(thread_state->trap_vector, _ANNUL_);
