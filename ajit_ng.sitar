@@ -104,21 +104,30 @@ module CPU
     #include "cpu.h"
     }
     $
+	include include $#include "ajit_ng.h"$
     include $extern void init_cpu();$
     include $extern void cpu();$
     include $extern thread_local state current_state;$
     decl $uint8_t mae;$;
     decl $uint64_t dcache_read_data;$;
     decl $token<sizeof(uint8_t)> mae_token;$
-    
 
     
 behavior
-
-    $init_cpu();$;
+	$init_cpu();$;
 
     $
     ThreadState* thread_state;
+	dcache_out dc_out ;
+	icache_out ic_out;
+	dcache_in dc_in;
+	icache_in ic_in;
+	
+	dcache_out dc_out = { (void *) &d_context, (void *) &d_asi, (void *) &d_addr, (void *) &d_request_type, (void *) &d_byte_mask, (void *) &d_write_data};
+	icache_out ic_out = {(void *) &i_context, (void *) &i_asi, (void *) &i_addr, (void *) &i_request_type, (void *) &i_byte_mask};
+    dcache_in dc_in = {(void *)d_mae_in, (void *)d_read_data};
+	icache_in ic_in = {(void *)&i_mae_in, (void *)&inst_pair, (void *)&i_mmu_fsr };
+
     thread_state = makeThreadState(CORE_ID, THREAD_ID, isa_mode, bp_table_size, report_traps, init_pc);
     $;
 
@@ -151,7 +160,7 @@ behavior
             
             do
                 wait until (this_phase==0);
-                $done_pull=mae_in.pull(mae_token);$;
+                $done_pull=i_mae_in.pull(mae_token);$;
                 if(not done_pull) then wait end if;
             while(not done_pull) end do;   
             wait until (this_phase==1);
@@ -192,7 +201,7 @@ behavior
 			if(thread_state->mmu_fsr != 0) {
 				updateMmuFsrFar_push(getThreadContext(thread_state),
                     thread_state->mmu_fsr, thread_state->status_reg.pc,
-                    (void *) &context, (void *) &asi, (void *) &addr, (void *) &request_type, (void *) &byte_mask, (void *) &d_write_data );
+                    (void *) &context, (void *) &d_asi, (void *) &d_addr, (void *) &d_request_type, (void *) &d_byte_mask, (void *) &d_write_data );
                 $
                     done_pull = 0;
                     
@@ -300,13 +309,14 @@ behavior
 		{
 			//Execute instruction 
 			post_execute_trap_vector = 
-				executeInstruction( thread_state,
+				executeInstruction_split_1(thread_state,
 							opcode, 
 							operand2_0, operand2_1, 
 							operand1_0, operand1_1, 
 							&result_h, &result_l,
 							&flags, rs1, rd, asi, i,
-							data1, data0, vector_data_type);
+							data1, data0, vector_data_type, 
+							&dc_out, &ic_out);
 
 			thread_state->trap_vector = post_execute_trap_vector;
 			save_flag = (opcode == _SAVE_);
