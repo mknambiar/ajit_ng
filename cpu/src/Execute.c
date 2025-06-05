@@ -287,6 +287,230 @@ uint32_t executeLoad(Opcode op, uint32_t operand1, uint32_t operand2,
 
 
 //
+// executeStore for sitar
+//
+uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2, uint32_t *result_h, uint32_t *result_l, uint32_t data0,	uint32_t data1, StatusRegisters *status_reg, uint32_t trap_vector, uint8_t asi, uint8_t rd, ThreadState *state, dcache_out *dc_out)
+{
+#ifdef DEBUG
+	fprintf(stderr,"\tInfo : Store op-code=%x operand1=%x operand2=%x asi=%x\n", op, operand1, operand2, asi);
+#endif 
+	uint32_t tv = trap_vector;
+	uint32_t psr = status_reg->psr;
+	uint32_t fsr = status_reg->fsr;
+	uint8_t s = getBit32(psr, 7);
+	uint8_t ef = getBit32(psr, 12);
+	uint8_t ec = getBit32(psr, 13);
+	uint8_t addr_space = 0;
+
+	uint32_t address = operand1 + operand2;
+
+	if (!(dc_out->push_done)) {
+		uint8_t is_alternate = ((op >= _STBA_) && (op <= _STDA_));
+		uint8_t is_privileged = ((is_alternate || op == _STDFQ_ || op == _STDCQ_) && (!s));
+
+
+		if(is_privileged)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _PRIVILEGED_INSTRUCTION_, 1);
+		}
+
+		uint8_t is_not_alternate = ((op >= _STB_) && (op <= _STDCQ_));
+		if(is_not_alternate)
+		{
+			setPageBit((CoreState*) state->parent_core_state, address); // flag all pages that were accessed.
+			if( !s) addr_space = 10;
+			else    addr_space = 11;
+		}
+		else
+		{
+			if(s) 
+			{
+				addr_space = asi;
+				//
+				//
+				// flush the ICACHE if it is an mmu-ctrl-register write.
+				//
+				//
+				if((addr_space == ASI_MMU_REGISTER) || (addr_space == ASI_MMU_FLUSH_PROBE))
+				{
+					
+					if ((addr_space != ASI_MMU_REGISTER) || (((address >> 8) & 0x7)  != 2))
+					// Do not flush if it is a context-pointer write.
+					{
+	#ifdef DEBUG
+						fprintf(stderr,"\tInfo:executeStore: Flushing ICACHE due to MMU-CTRl-REGISTER-WRITE/FLUSH-PROBE (asi=0x%x) \n", asi);
+	#endif
+						flushCache(state->icache);
+					}
+
+					// flush instruction buffer...
+					if(state->i_buffer != NULL)
+					{
+						clearInstructionDataBuffer(state->i_buffer);	
+					}
+				}
+			}
+
+		}
+
+		uint8_t is_fp_trap = (((op == _STF_) || (op == _STDF_) || (op == _STFSR_) || (op == _STDFQ_)) && ((!ef) || !getBpFPUPresent(state)));
+
+		if(!is_privileged && is_fp_trap) 
+		{
+			tv = setBit32(tv, _TRAP_, 1) ;
+			tv = setBit32(tv, _FP_DISABLED_, 1);
+		}
+
+		uint8_t is_cp_trap = (((op == _STC_) || (op == _STDC_) || (op == _STCSR_) || (op == _STDCQ_)) && ((!ec) || !getBpCPPresent(state)));
+		if(!is_privileged && is_cp_trap)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _CP_DISABLED_, 1);
+		}
+
+		uint8_t misaligned_hw = (((op == _STH_) || (op == _STHA_)) && getBit32(address, 0));
+		uint8_t misaligned_fw = (((op == _ST_) || (op == _STA_) || (op == _STF_) || (op == _STFSR_) || (op == _STC_) || (op == _STCSR_))
+				&& getSlice32(address, 1, 0));
+		uint8_t misaligned_dw = (((op == _STD_) || (op == _STDA_) || (op == _STDF_) || (op == _STDFQ_) || (op == _STDC_) || (op == _STDCQ_))
+				&& getSlice32(address, 2, 0));
+
+		uint8_t is_misaligned = (misaligned_hw || misaligned_fw || misaligned_dw);
+
+		uint8_t is_trap = getBit32(tv, _TRAP_);
+
+		if(!is_trap && is_misaligned)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _MEM_ADDRESS_NOT_ALIGNED_, 1);
+		}
+
+		uint8_t invalid_fp_reg = (!is_trap && !is_misaligned && (op == _STDF_) && getBit8(rd, 0));
+		if(invalid_fp_reg)
+		{
+
+			tv =  setBit32(tv, _TRAP_, 1) ;
+			tv =  setBit32(tv, _INVALID_FP_REGISTER_, 1) ;
+			status_reg->fsr = setSlice32(fsr, 16, 14, 6) ;
+		}
+
+		// Note - Not implemented invalid_fp_register, no fp queue and no cp queue
+
+		uint8_t byte_mask = 0;
+
+		if((op == _STF_) || (op == _STC_) || (op == _STDF_) || \
+				(op == _STDC_) || (op == _STD_) || (op == _STDA_) || (op == _STDFQ_) ||\
+				(op == _STDCQ_) || (op == _STFSR_) || (op == _STCSR_) || (op == _ST_) || (op == _STA_))
+		{
+			byte_mask = 0xF ;
+		}
+
+		if (op == _STFSR_) data0 = status_reg->fsr ;
+		if (op == _STCSR_) data0 = status_reg->csr ;
+
+		if ((op == _STH_) || (op == _STHA_))
+		{
+			if (getSlice32(address, 1, 0) == 0) 
+			{
+				byte_mask = 0xC ;
+				data0 = (data0 << 16) ;
+			}
+			else if (getSlice32(address, 1, 0) == 2) byte_mask = 0x3 ;
+		}
+
+		if ((op == _STB_) || (op == _STBA_))
+
+		{
+			if (getSlice32(address, 1, 0) == 0)  { byte_mask = 0x8 ; data0 = (data0 << 24) ;}
+			if (getSlice32(address, 1, 0) == 1)  { byte_mask = 0x4 ; data0 = (data0 << 16) ;}
+			if (getSlice32(address, 1, 0) == 2)  { byte_mask = 0x2 ; data0 = (data0 << 8)  ;}
+			if (getSlice32(address, 1, 0) == 3)  { byte_mask = 0x1 ; }
+		}
+
+		dc_out->is_dw = (op == _STD_) || (op == _STDA_) || (op == _STDF_) || (op == _STDC_) || (op == _STDFQ_) || (op == _STDCQ_);
+		dc_out->is_trap1 = getBit32(tv, _TRAP_);
+		uint8_t mae1 = 0;
+
+		if(!(dc_out->is_trap1)	
+		{
+			if(!(dc_out->is_dw))
+			{
+					//perform a memory access if this is not a double-word store
+					writeData_sitar(state->core_id, state->thread_id,  getThreadContext(state),
+							state->mmu_state, state->dcache,
+							addr_space, address, byte_mask, data0, dc_out);
+				}
+				else
+				{
+					uint64_t data64 = data0;
+					data64 = data64<<32 | data1;
+					
+					//This is a double word store
+					writeData64_sitar(state->core_id, state->thread_id,  getThreadContext(state),
+							state->mmu_state, state->dcache,
+							addr_space, address , 0xFF, data64, dc_out);
+
+				}
+			}
+		}
+	
+	} else {
+
+		if(!(dc_out->is_trap1))	
+		{
+			//Log information about the store
+			StateUpdateFlags* reg_update_flags = &(state->reg_update_flags);
+			reg_update_flags->store_active=1;
+			reg_update_flags->store_asi=addr_space;
+			reg_update_flags->store_addr=address;
+			if(dc_out->is_dw)
+			{
+				reg_update_flags->store_double_word=1;
+				reg_update_flags->store_byte_mask=0xFF;
+				reg_update_flags->store_word_low=data1;
+				reg_update_flags->store_word_high=data0;
+			}
+			else
+			{
+				reg_update_flags->store_double_word=0;
+				// byte-mask shifted if write to upper word of double word.
+				reg_update_flags->store_byte_mask=
+					(((address & 0x4) != 0) ? byte_mask : (byte_mask << 4));
+				reg_update_flags->store_word_low=data0;
+			}
+
+
+			//inform the HW server about the memory access
+			// inform_HW_server(state, GDB_MEM_ACCESS,  address);
+			
+			//Check mae
+			if(dc_out->mae1)
+			{
+				tv = setBit32(tv, _TRAP_, 1) ;
+				tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
+				if(global_verbose_flag)
+				{
+					fprintf(stderr,"EXCEPTION: at pc 0x%x, store to 0x%x, asi=0x%x.\n", 
+							status_reg->pc, address, addr_space);
+				}
+			}
+			else if (global_verbose_flag)
+			{
+				fprintf(stderr,"STORE: at pc 0x%x, store to 0x%x, asi=0x%x.\n", 
+							status_reg->pc, address, addr_space);
+			}
+		}
+
+			
+	}
+	return tv;
+}
+
+
+
+
+
+//
 // Candidate for pipelined Aa module
 //
 uint32_t executeStore( Opcode op, uint32_t operand1, uint32_t operand2, uint32_t *result_h, uint32_t *result_l, uint32_t data0,	uint32_t data1, StatusRegisters *status_reg, uint32_t trap_vector, uint8_t asi, uint8_t rd, ThreadState *state)
@@ -2234,12 +2458,19 @@ uint32_t executeInstruction_split_1(
 	// for 32-bit case
 	uint32_t operand1 = operand1_0;
 	uint32_t operand2 = operand2_0;
-
-	if(is_load)  		tv = 	executeLoad(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s);
-	else if(is_store) 	tv = 	executeStore(opcode, operand1, operand2, result_h, result_l, data0, data1, status_reg,trap_vector, asi, rd, s);
-	else if(is_atomic) 	tv = 	executeLdstub(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, flags, s);
-	else if(is_swap) 	tv = 	executeSwap(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, imm_flag, data0, flags, s);
-	else if(is_cswap) 	tv = 	executeCswap(opcode, 
+	dc_out->is_load = is_load;
+	dc_out->is_store = is_store;
+	dc_out->is_atomic = is_atomic;
+	dc_out->is_swap = is_swap;
+	dc_out->is_cswap = is_cswap;
+	dc_out->is_stbar = is_stbar;
+	dc->push_done = 0;
+	
+	if(is_load)  		tv = 	executeLoad_split_12(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s, dc_out);
+	else if(is_store) 	tv = 	executeStore_split_12(opcode, operand1, operand2, result_h, result_l, data0, data1, status_reg,trap_vector, asi, rd, s, dc_out);
+	else if(is_atomic) 	tv = 	executeLdstub_split_12(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, flags, s, dc_out);
+	else if(is_swap) 	tv = 	executeSwap_split_12(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, imm_flag, data0, flags, s, dc_out);
+	else if(is_cswap) 	tv = 	executeCswap_split_12(opcode, 
 							operand1,  // rs1
 						 	operand2,  // rs2
 							result_l, // destination.
@@ -2249,7 +2480,8 @@ uint32_t executeInstruction_split_1(
 							s,
 							status_reg,
 							&(s->reg_update_flags),
-							flags);
+							flags,
+							dc_out);
 	else if(is_logical) 
 		executeLogical(opcode, operand1, operand2, result_l, status_reg, &(s->reg_update_flags), flags);
 	else if(is_logical_64)
@@ -2309,7 +2541,7 @@ uint32_t executeInstruction_split_1(
 	else if(is_ticc)	tv = 	executeTicc(opcode, operand1, operand2, status_reg,&(s->reg_update_flags), trap_vector, &(s->ticc_trap_type));
 	else if(is_read_state_reg) 	tv =	executeReadStateReg(opcode, rs1, result_l, s, trap_vector, flags);
 	else if(is_write_state_reg)	tv =	executeWriteStateReg(opcode, operand1, operand2, rd, status_reg, &(s->reg_update_flags), trap_vector);
-	else if(is_stbar)		    	executeStbar(&(s->store_barrier_pending), &(s->reg_update_flags), s);
+	else if(is_stbar)		    	executeStbar_split_12(&(s->store_barrier_pending), &(s->reg_update_flags), s, dc_out);
 	else if(is_unimp)		tv =	executeUnImplemented(trap_vector);
 	else if(is_flush)		tv =	executeFlush((operand1 + operand2), trap_vector,&(s->reg_update_flags), s);
 	else if(is_byte_reduce)
