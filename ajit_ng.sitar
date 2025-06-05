@@ -317,6 +317,10 @@ behavior
 							&flags, rs1, rd, asi, i,
 							data1, data0, vector_data_type, 
 							&dc_out, &ic_out);
+							
+			if ((dc_out->push_done) {
+				// executeInstruction_split_2
+			}
 
 			thread_state->trap_vector = post_execute_trap_vector;
 			save_flag = (opcode == _SAVE_);
