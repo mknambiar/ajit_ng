@@ -22,6 +22,7 @@
 #include "FpExceptions.h"
 #include "Mmu.h"
 #include "CacheInterface.h"
+#include "ajit_ng.h"
 
 extern int global_verbose_flag;
 
@@ -2149,6 +2150,269 @@ uint32_t executeFlush(uint32_t flush_addr, uint32_t trap_vector, StateUpdateFlag
 
 	return trap_vector;
 }
+
+
+uint32_t executeInstruction_split_1( 
+				ThreadState *s, 
+				Opcode opcode, 
+				uint32_t operand2_0, uint32_t operand2_1, 
+				uint32_t operand1_0, uint32_t operand1_1,
+				uint32_t *result_h, uint32_t *result_l, 
+				uint8_t *flags, 
+				uint8_t rs1, uint8_t rd, uint8_t asi, 
+				uint8_t imm_flag,
+				uint32_t data1, uint32_t data0, uint8_t vector_data_type,
+				dcache_out *dc_out, icache_out *ic_out)
+{
+	uint32_t old_pc = s->status_reg.pc;
+
+
+	uint32_t trap_vector = s->trap_vector;
+	StatusRegisters *status_reg = &(s->status_reg);
+	RegisterFile* rf = s->register_file;
+
+	uint8_t is_load = ((opcode >= _LDSB_) && (opcode <= _LDDA_));
+	uint8_t is_store = ((opcode >= _STB_) && (opcode <= _STDA_));
+	uint8_t is_atomic = ((opcode == _LDSTUB_) || (opcode == _LDSTUBA_));
+	uint8_t is_swap = ((opcode == _SWAP_) || (opcode == _SWAPA_));
+	uint8_t is_cswap = ((opcode == _CSWAP_) || (opcode == _CSWAPA_));
+	uint8_t is_sethi = (opcode == _SETHI_);
+	uint8_t is_nop = (opcode == _NOP_);
+
+	uint8_t is_logical    = ((opcode >= _AND_) && (opcode <= _XNORcc_));
+	uint8_t is_logical_64 = ((opcode >= _ANDD_) && (opcode <= _XNORDcc_));
+
+	uint8_t is_shift     = ((opcode >= _SLL_) && (opcode <= _SRA_));
+	uint8_t is_shift_64  = ((opcode >= _SLLD_) && (opcode <= _SRAD_));
+
+	uint8_t is_add    = ((opcode >= _ADD_) && (opcode <= _ADDXcc_));
+	uint8_t is_add_64 = ((opcode >= _ADDD_) && (opcode <= _ADDDcc_));
+
+	uint8_t is_tadd   = ((opcode == _TADDcc_) || (opcode == _TADDccTV_));
+
+	uint8_t is_sub    = ((opcode >= _SUB_) && (opcode <= _SUBXcc_));
+	uint8_t is_sub_64 = ((opcode >= _SUBD_) && (opcode <= _SUBDcc_));
+
+	uint8_t is_tsub = ((opcode == _TSUBcc_) || (opcode == _TSUBccTV_));
+	uint8_t is_mul_step = (opcode == _MULScc_);
+
+	uint8_t is_multiply    = ((opcode >= _UMUL_) && (opcode <= _SMULcc_));
+	uint8_t is_multiply_64 = ((opcode >= _UMULD_) && (opcode <= _SMULDcc_));
+
+	uint8_t is_divide = ((opcode >= _UDIV_) && (opcode <= _SDIVcc_));
+	uint8_t is_divide_64 = ((opcode >= _UDIVD_) && (opcode <= _SDIVDcc_));
+
+	uint8_t is_save = (opcode == _SAVE_);
+	uint8_t is_restore = (opcode == _RESTORE_);
+	uint8_t is_bicc = ((opcode >= _BA_) && (opcode <= _BVS_));
+	uint8_t is_bfpcc = ((opcode >= _FBA_) && (opcode <= _FBO_));
+	uint8_t is_bcpcc = ((opcode >= _CBA_) && (opcode <= _CB012_));
+	uint8_t is_call = ((opcode == _CALL_));
+	uint8_t is_jmpl = (opcode == _JMPL_);
+	uint8_t is_rett = (opcode == _RETT_);
+	uint8_t is_ticc = ((opcode >= _TA_) && (opcode <= _TVS_));
+	uint8_t is_read_state_reg = ((opcode >= _RDY_) && (opcode <= _RDTBR_));
+	uint8_t is_write_state_reg = ((opcode >= _WRY_) && (opcode <= _WRTBR_));
+	uint8_t is_stbar = (opcode == _STBAR_);
+	uint8_t is_unimp = (opcode == _UNIMP_);
+	uint8_t is_flush = (opcode == _FLUSH_);
+	uint8_t is_coprocessor_op = ((opcode >= _CPop1_) && (opcode<=_CPop2_));
+
+	uint8_t is_iu_simd = ((opcode >= _VADDD8_) && (opcode <= _VSMULD32_));
+	uint8_t is_byte_reduce = ((opcode == _ADDDREDUCE8_) || 
+			(opcode == _ANDDREDUCE8_) ||
+			(opcode == _ORDREDUCE8_) ||
+			(opcode == _XORDREDUCE8_));
+	uint8_t is_halfword_reduce = ((opcode == _ADDDREDUCE16_) || 
+			(opcode == _ANDDREDUCE16_) ||
+			(opcode == _ORDREDUCE16_) ||
+			(opcode == _XORDREDUCE16_));
+	uint8_t is_byte_zpos = (opcode == _ZBYTEDPOS_);
+
+	uint32_t tv=0;
+
+	// for 32-bit case
+	uint32_t operand1 = operand1_0;
+	uint32_t operand2 = operand2_0;
+
+	if(is_load)  		tv = 	executeLoad(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s);
+	else if(is_store) 	tv = 	executeStore(opcode, operand1, operand2, result_h, result_l, data0, data1, status_reg,trap_vector, asi, rd, s);
+	else if(is_atomic) 	tv = 	executeLdstub(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, flags, s);
+	else if(is_swap) 	tv = 	executeSwap(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, imm_flag, data0, flags, s);
+	else if(is_cswap) 	tv = 	executeCswap(opcode, 
+							operand1,  // rs1
+						 	operand2,  // rs2
+							result_l, // destination.
+							data0,
+							trap_vector, 
+							asi, imm_flag, 
+							s,
+							status_reg,
+							&(s->reg_update_flags),
+							flags);
+	else if(is_logical) 
+		executeLogical(opcode, operand1, operand2, result_l, status_reg, &(s->reg_update_flags), flags);
+	else if(is_logical_64)
+		execute64BitLogical(opcode, operand1_0, operand1_1, operand2_0, operand2_1, result_h, result_l, status_reg, &(s->reg_update_flags), flags);
+	else if(is_nop) 	     	executeNop();
+	else if(is_sethi) 	       executeSethi(operand1, result_l, flags);
+	else if(is_shift)  
+		executeShift(opcode, operand1, operand2, result_l, flags);
+	else if(is_shift_64)  
+		execute64BitShift(opcode, operand1_0, operand1_1, operand2, result_h, result_l, 
+					status_reg, &(s->reg_update_flags), 
+					flags);
+	else if(is_add) 
+		executeAdd(opcode, operand1, operand2, result_l, 
+					status_reg, &(s->reg_update_flags), 
+					flags);
+	else if(is_add_64)
+			execute64BitAdd(opcode, operand1_0, operand1_1, 
+						operand2_0, operand2_1, 
+						result_h, result_l, 
+						status_reg, &(s->reg_update_flags), 
+						flags);
+	else if(is_tadd)	tv = 	executeTAdd(opcode, operand1, operand2, result_l, status_reg, &(s->reg_update_flags), trap_vector, flags);
+	else if(is_sub) 
+		executeSub(opcode, operand1, operand2, result_l, status_reg, &(s->reg_update_flags),flags);
+	else if(is_sub_64) 
+		execute64BitSub(opcode, operand1_0, operand1_1, operand2_0, operand2_1, result_h, result_l, status_reg, &(s->reg_update_flags), flags);
+	else if(is_tsub)	tv =	executeTSub(opcode, operand1, operand2, result_l, status_reg, &(s->reg_update_flags),trap_vector, flags);
+	else if(is_multiply) 
+		executeMul(opcode, operand1, operand2, result_l, status_reg, &(s->reg_update_flags),flags);
+	else if(is_multiply_64)
+		execute64BitMul(opcode, operand1_0, operand1_1, operand2_0, operand2_1, result_h, result_l, status_reg, &(s->reg_update_flags), flags);
+	else if(is_mul_step)	       executeMulStep(operand1, operand2, result_l, status_reg, &(s->reg_update_flags),flags);
+	else if(is_divide)	
+	{
+		tv = 	
+			executeDiv(opcode, operand1, operand2, result_l, 
+				status_reg, &(s->reg_update_flags),trap_vector, flags, s);
+		s->num_iu_divs_executed++;
+	}
+	else if(is_divide_64)
+	{
+		tv = 	execute64BitDiv(opcode, operand1_0, operand1_1, 
+						operand2_0, operand2_1, 
+						result_h, result_l, 
+						status_reg, &(s->reg_update_flags),
+						trap_vector, flags, s);
+	}
+	else if(is_save)	tv = 	executeSave(operand1, operand2, result_l, status_reg, &(s->reg_update_flags),trap_vector, flags);
+	else if(is_restore)	tv = 	executeRestore(operand1, operand2, result_l, status_reg, &(s->reg_update_flags),trap_vector, flags);
+	else if(is_bicc)	tv = 	executeBicc(opcode, operand1, status_reg, trap_vector, *flags);
+	else if(is_bfpcc)	tv = 	executeBfpcc(s,opcode, operand1, status_reg, trap_vector, *flags);
+	else if(is_bcpcc)	tv = 	executeBcpcc(s, opcode, operand1, status_reg, trap_vector, *flags);
+	else if(is_call) 	     executeCall(rf, operand1, status_reg, &(s->reg_update_flags));
+	else if(is_jmpl)	tv = 	executeJumpAndLink(opcode, operand1, operand2, result_l, status_reg, trap_vector, flags);
+	else if(is_rett)	tv = 	executeRett(opcode, operand1, operand2, result_l, status_reg, &(s->reg_update_flags),trap_vector, &(s->mode));
+	else if(is_ticc)	tv = 	executeTicc(opcode, operand1, operand2, status_reg,&(s->reg_update_flags), trap_vector, &(s->ticc_trap_type));
+	else if(is_read_state_reg) 	tv =	executeReadStateReg(opcode, rs1, result_l, s, trap_vector, flags);
+	else if(is_write_state_reg)	tv =	executeWriteStateReg(opcode, operand1, operand2, rd, status_reg, &(s->reg_update_flags), trap_vector);
+	else if(is_stbar)		    	executeStbar(&(s->store_barrier_pending), &(s->reg_update_flags), s);
+	else if(is_unimp)		tv =	executeUnImplemented(trap_vector);
+	else if(is_flush)		tv =	executeFlush((operand1 + operand2), trap_vector,&(s->reg_update_flags), s);
+	else if(is_byte_reduce)
+		execute64BitReduce8 (opcode, 
+						operand1_0, operand1_1, 
+						operand2, 
+						result_l, 
+						status_reg, &(s->reg_update_flags), 
+						flags);
+	else if(is_halfword_reduce)
+		execute64BitReduce16 (opcode, 
+						operand1_0, operand1_1, 
+						operand2, 
+						result_l, 
+						status_reg, &(s->reg_update_flags), 
+						flags);
+	else if(is_byte_zpos)
+		execute64BitZBytePos   (opcode, operand1_0, operand1_1, operand2, result_l, status_reg, &(s->reg_update_flags), flags);
+	else if (is_iu_simd) 
+		execute64BitVectorOp (opcode, 
+					vector_data_type,
+					operand1_0, operand1_1, 
+					operand2_0, operand2_1,
+					result_h, result_l, 
+					status_reg, &(s->reg_update_flags), 
+					flags);
+	else if(is_coprocessor_op)	tv = 	executeCoprocessor(trap_vector);
+
+	if(opcode == _UNASSIGNED_) s->mode= _ERROR_MODE_ ;
+
+	uint8_t is_cti = (is_bicc || is_bfpcc || is_bcpcc || is_call || is_jmpl || is_rett);
+	if(is_cti)
+	{
+		uint32_t bp_nnpc;
+		uint32_t bp_idx = 0;
+
+		uint8_t br_taken = ((s->status_reg.pc + 4) != s->status_reg.npc);
+
+		if(is_call)
+		{
+			pushIntoReturnAddressStack (&(s->return_address_stack), old_pc + 8);
+		}
+
+		uint8_t is_ret_or_retl = (is_jmpl && imm_flag && (operand2 == 8) &&  ((rs1 == 15) || (rs1 == 31)));
+	
+		if(is_ret_or_retl)	
+		// issue here..  retl can jump back into the return address stack..  this will cause a few
+		// mispredicts
+		{
+			uint32_t pop_val = popFromReturnAddressStack(&(s->return_address_stack));
+			if(pop_val & 0x1)
+			{
+				if((pop_val & (~ 0x1)) != s->status_reg.npc)
+				{
+					incrementRasMispredicts(&(s->return_address_stack));
+					if(global_verbose_flag)
+						fprintf(stderr,"RAS: mispredict on 0x%x\n", pop_val & (~0x1));
+				}
+			}
+		}
+		else 
+		{
+			if(branchPrediction(&(s->branch_predictor), old_pc, s->status_reg.pc,  &bp_idx, &bp_nnpc))
+			{
+				if(bp_nnpc != s->status_reg.npc) {
+					incrementMispredicts (&(s->branch_predictor));
+				}
+
+				updateBranchPredictEntry(&(s->branch_predictor), 
+						bp_idx, 
+						br_taken,
+						s->status_reg.npc);
+			}
+			else
+			{
+				if((s->status_reg.pc+4) != s->status_reg.npc)
+				{
+					incrementMispredicts (&(s->branch_predictor));
+				}
+				addBranchPredictEntry(&(s->branch_predictor), br_taken, old_pc, s->status_reg.npc);
+			}
+		}
+	}
+
+#ifdef SW
+	if(s->mode == _ERROR_MODE_)
+	{
+		fprintf(stderr,"Entering ERROR mode\n" );
+		fprintf(stderr,"encountered instruction with UNASSIGNED opcode \n");
+		fprintf(stderr,"at PC = 0x%x, npc=0x%x, psr=0x%x, wim=0x%x\n",
+				s->status_reg.pc,
+				s->status_reg.npc,
+				s->status_reg.psr,
+				s->status_reg.wim
+		       );
+		fprintf(stderr," instruction word = 0x%x\n",s->instruction);
+	}
+#endif
+
+	return tv;
+
+}
+
 
 uint32_t executeInstruction( 
 				ThreadState *s, 
