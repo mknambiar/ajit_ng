@@ -2313,6 +2313,74 @@ uint32_t executeUnImplemented( uint32_t trap_vector)
 	return tv;
 }
 
+//for sitar implementation
+uint32_t executeFlush_split_12(uint32_t flush_addr, uint32_t trap_vector, StateUpdateFlags* reg_update_flags,
+				ThreadState* state, dcache_out *dc_out, icache_out *ic_out )
+{
+#ifdef DEBUG
+	fprintf(stderr,"\tInfo : FLUSH\n" );
+#endif 
+	//Flush D-cache
+	//D-cache can be flushed by performing a
+	//store-alternate with asi=ASI_FLUSH_I_D_CONTEXT
+	uint8_t mae=0;
+
+    assert(dc_out->push_done == ic_out->push_done);
+    
+    if(!(dc_out->push_done))
+    					
+        writeData_sitar(state->core_id, state->thread_id,  getThreadContext(state),
+                state->mmu_state, state->dcache, ASI_FLUSH_I_D_CONTEXT, flush_addr, 0x00, 0x00, dc_out);
+                
+    else if(dc->mae) {
+		//An error occured while executing FLUSH!
+		#ifdef SW
+		fprintf(stderr,"\tInfo : An error occured while flushing Dcache in a FLUSH instruction\n" );
+		#endif
+
+	}
+
+	
+	//Flush I-cache
+	uint8_t flush_asi = ASI_FLUSH_I_CONTEXT;	
+	//address is ignored, the entire cache is flushed
+	//as per current implementation if Icache
+
+    if(!(ic_out->push_done))    					
+            flushIcacheLine_sitar(getThreadContext(state),flush_asi, flush_addr, ic_out);
+	else {
+        // flush instruction buffer.
+        if(state->i_buffer != NULL)
+            clearInstructionDataBuffer(state->i_buffer);
+
+        if(ic_out->mae)
+        {
+            //An error occured while executing FLUSH!
+            #ifdef SW
+            fprintf(stderr,"\tInfo : An error occured while executing FLUSH instruction\n" );
+            #endif
+
+        }
+
+        //if flush is unimplemented :
+        //uint32_t tv = trap_vector;
+        //tv = setBit32(tv, _TRAP_, 1);
+        //tv = setBit32(tv, _UNIMPLEMENTED_FLUSH_, 1);
+        
+        //Log information about the store
+        reg_update_flags->store_active=1;
+        reg_update_flags->store_asi=ASI_FLUSH_I_D_CONTEXT;
+        reg_update_flags->store_addr=flush_addr;
+        reg_update_flags->store_double_word=0;
+        reg_update_flags->store_byte_mask=0x0;
+        reg_update_flags->store_word_low=0;
+        reg_update_flags->store_word_high=0;
+
+
+        return trap_vector;
+    }
+}
+
 uint32_t executeFlush(uint32_t flush_addr, uint32_t trap_vector, StateUpdateFlags* reg_update_flags,
 				ThreadState* state)
 {
@@ -2543,7 +2611,7 @@ uint32_t executeInstruction_split_1(
 	else if(is_write_state_reg)	tv =	executeWriteStateReg(opcode, operand1, operand2, rd, status_reg, &(s->reg_update_flags), trap_vector);
 	else if(is_stbar)		    	executeStbar_split_12(&(s->store_barrier_pending), &(s->reg_update_flags), s, dc_out);
 	else if(is_unimp)		tv =	executeUnImplemented(trap_vector);
-	else if(is_flush)		tv =	executeFlush((operand1 + operand2), trap_vector,&(s->reg_update_flags), s);
+	else if(is_flush)		tv =	executeFlush_split_12((operand1 + operand2), trap_vector,&(s->reg_update_flags), s, dc_out, ic_out);
 	else if(is_byte_reduce)
 		execute64BitReduce8 (opcode, 
 						operand1_0, operand1_1, 
