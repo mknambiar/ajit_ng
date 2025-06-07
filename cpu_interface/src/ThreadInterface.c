@@ -70,6 +70,24 @@ void readInstruction(int core_id, int cpu_id,
 #endif
 }
 
+//Request ICACHE to flush line containing a given doubleword in sitar
+void flushIcacheLine_sitar(uint8_t context, uint8_t asi, uint32_t addr, icache_out ic)
+{
+
+	uint64_t instr64;
+	uint32_t mmu_fsr;
+
+	// set the top bit of the asi to 1 to indicate "thread head"
+    ic->push_done = 0;
+	cpuIcacheAccess_push(context,  (asi | 0x80), addr, REQUEST_TYPE_WRITE,  0xff);
+	*mae 	= (*mae & 0x1);
+	
+#ifdef DEBUG
+	printf("\nCPU %d: ICACHE FLUSH addr=0x%x, asi=0x%x, MAE=0x%x, MMU_FSR=0x%x",
+			cpu_id, addr, asi, *mae, mmu_fsr);
+#endif
+	return;
+}
 
 
 //Request ICACHE to flush line containing a given doubleword.
@@ -275,10 +293,32 @@ void cpuDcacheAccess_push(uint8_t context, uint8_t asi, uint32_t addr, uint8_t r
     assert(rc == true);		    
     rc = pushdword(dc->d_write_data_port, data64, sync); 
     assert(rc == true);		    
-	dc->push_done = 1
+	dc->push_done = 1;
 	
 }
+
+//(context,  (asi | 0x80), addr, REQUEST_TYPE_WRITE,  0xff);
 				
+void cpuIcacheAccess_push(uint8_t context, uint8_t asi, uint32_t addr, uint8_t request_type,
+				uint8_t byte_mask, icache_out *ic)
+{
+        bool rc;
+	
+///    
+        
+        rc = pushchar(ic->i_context_port, context, sync);
+        assert(rc == true);	
+        rc = pushchar(ic->i_asi_port, addr_space, sync); 
+        assert(rc == true);		
+        rc = pushword(ic->i_addr_port, addr & 0xfffffff8, sync); 
+        assert(rc == true);		
+        rc = pushchar(ic->i_request_type_port, request_type, sync); 
+        assert(rc == true);		    
+        rc = pushchar(ic->byte_mask_port, 0xff, sync); 
+        assert(rc == true);		    
+        ic->push_done = 1;
+	
+}
 				
 				
 				
