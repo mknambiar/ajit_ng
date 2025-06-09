@@ -484,7 +484,7 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 			// inform_HW_server(state, GDB_MEM_ACCESS,  address);
 			
 			//Check mae
-			if(dc_out->mae1)
+			if(dc_out->mae)
 			{
 				tv = setBit32(tv, _TRAP_, 1) ;
 				tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
@@ -2532,7 +2532,9 @@ uint32_t executeInstruction_split_1(
 	dc_out->is_swap = is_swap;
 	dc_out->is_cswap = is_cswap;
 	dc_out->is_stbar = is_stbar;
+    ic_out->is_flush = is_flush;
 	dc->push_done = 0;
+    ic->push_done = 0;
 	
 	if(is_load)  		tv = 	executeLoad_split_12(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s, dc_out);
 	else if(is_store) 	tv = 	executeStore_split_12(opcode, operand1, operand2, result_h, result_l, data0, data1, status_reg,trap_vector, asi, rd, s, dc_out);
@@ -2693,6 +2695,81 @@ uint32_t executeInstruction_split_1(
 			}
 		}
 	}
+
+#ifdef SW
+	if(s->mode == _ERROR_MODE_)
+	{
+		fprintf(stderr,"Entering ERROR mode\n" );
+		fprintf(stderr,"encountered instruction with UNASSIGNED opcode \n");
+		fprintf(stderr,"at PC = 0x%x, npc=0x%x, psr=0x%x, wim=0x%x\n",
+				s->status_reg.pc,
+				s->status_reg.npc,
+				s->status_reg.psr,
+				s->status_reg.wim
+		       );
+		fprintf(stderr," instruction word = 0x%x\n",s->instruction);
+	}
+#endif
+
+	return tv;
+
+}
+
+uint32_t executeInstruction_split_2( 
+				ThreadState *s, 
+				Opcode opcode, 
+				uint32_t operand2_0, uint32_t operand2_1, 
+				uint32_t operand1_0, uint32_t operand1_1,
+				uint32_t *result_h, uint32_t *result_l, 
+				uint8_t *flags, 
+				uint8_t rs1, uint8_t rd, uint8_t asi, 
+				uint8_t imm_flag,
+				uint32_t data1, uint32_t data0, uint8_t vector_data_type,
+				dcache_out *dc_out, icache_out *ic_out)
+{
+	uint32_t old_pc = s->status_reg.pc;
+
+
+	uint32_t trap_vector = s->trap_vector;
+	StatusRegisters *status_reg = &(s->status_reg);
+	RegisterFile* rf = s->register_file;
+
+	uint32_t tv=0;
+
+	// for 32-bit case
+	uint32_t operand1 = operand1_0;
+	uint32_t operand2 = operand2_0;
+	dc_out->is_load = is_load;
+	dc_out->is_store = is_store;
+	dc_out->is_atomic = is_atomic;
+	dc_out->is_swap = is_swap;
+	dc_out->is_cswap = is_cswap;
+	dc_out->is_stbar = is_stbar;
+	dc->push_done = 0;
+	
+	if(dc_out->is_load)  		tv = 	executeLoad_split_12(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s, dc_out);
+	else if(dc_out->is_store) 	tv = 	executeStore_split_12(opcode, operand1, operand2, result_h, result_l, data0, data1, status_reg,trap_vector, asi, rd, s, dc_out);
+	else if(dc_out->is_atomic) 	tv = 	executeLdstub_split_12(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, flags, s, dc_out);
+	else if(dc_out->is_swap) 	tv = 	executeSwap_split_12(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, imm_flag, data0, flags, s, dc_out);
+	else if(dc_out->is_cswap) 	tv = 	executeCswap_split_12(opcode, 
+							operand1,  // rs1
+						 	operand2,  // rs2
+							result_l, // destination.
+							data0,
+							trap_vector, 
+							asi, imm_flag, 
+							s,
+							status_reg,
+							&(s->reg_update_flags),
+							flags,
+							dc_out);
+
+	else if(dc_out->is_stbar)		tv =   	executeStbar_split_12(&(s->store_barrier_pending), &(s->reg_update_flags), s, dc_out);
+	else if(ic_out->is_flush)		tv =	executeFlush_split_12((operand1 + operand2), trap_vector,&(s->reg_update_flags), s, dc_out, ic_out);
+
+
+	if(opcode == _UNASSIGNED_) s->mode= _ERROR_MODE_ ;
+
 
 #ifdef SW
 	if(s->mode == _ERROR_MODE_)
