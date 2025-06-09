@@ -12,6 +12,7 @@ struct icache_out_struct {
 	void *i_context_port, *i_asi_port, *i_addr_port;
 	void *i_request_type_port, *i_byte_mask_port;
     uint8_t push_done, mae;
+    uint8_t is_flush;
 }
 
 typedef icache_out_struct icache_out;

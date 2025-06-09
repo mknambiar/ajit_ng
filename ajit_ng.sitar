@@ -108,9 +108,9 @@ module CPU
     include $extern void init_cpu();$
     include $extern void cpu();$
     include $extern thread_local state current_state;$
-    decl $uint8_t mae;$;
+    decl $uint8_t mae, done_pull, d_done_pull, i_done_pull;$;
     decl $uint64_t dcache_read_data;$;
-    decl $token<sizeof(uint8_t)> mae_token;$
+    decl $token<sizeof(uint8_t)> mae_token, d_mae_token, i_mae_token;$
 
     
 behavior
@@ -207,7 +207,7 @@ behavior
                     
                     do
                         wait until (this_phase==0);
-                        $done_pull=mae_in.pull(mae_token);$;
+                        $done_pull= d_mae_in.pull(mae_token);$;
                         if(not done_pull) then wait end if;
                     while(not done_pull) end do;   
                     wait until (this_phase==1);
@@ -308,6 +308,7 @@ behavior
 		if(!skip_execute)
 		{
 			//Execute instruction 
+            //Lot of redundant variables are there, lets keep it like this
 			post_execute_trap_vector = 
 				executeInstruction_split_1(thread_state,
 							opcode, 
@@ -317,10 +318,34 @@ behavior
 							&flags, rs1, rd, asi, i,
 							data1, data0, vector_data_type, 
 							&dc_out, &ic_out);
+                            
+                done_pull = d_done_pull = i_done_pull = 0;
 							
-			if ((dc_out->push_done) {
-				// executeInstruction_split_2
-			}
+                if ((dc_out->push_done) || (ic_out->push_done)) {
+
+                    do
+                        wait until (this_phase==0);
+                        if (dc_out->push_done) d_done_pull= d_mae_in.pull(d_mae_token);
+                        if (ic_out->push_done) i_done_pull= i_mae_in.pull(i_mae_token);
+                        done_pull = ((dc_out->push_done) && (ic_out->push_done))?(d_done_pull && i_done_pull):(((dc_out->push_done) && d_done_pull) || ((ic_out->push_done) && i_done_pull));
+                        if(not done_pull) then wait end if;
+                    while(not done_pull) end do;   
+                    wait until (this_phase==1);
+                    
+                    if (d_done_pull) memcpy(&dc_out->mae, d_mae_token.data(), sizeof(uint8_t));
+                    if (i_done_pull) memcpy(&ic_out->mae, i_mae_token.data(), sizeof(uint8_t));
+                    }// executeInstruction_split_2
+                    
+                    //Lot of redundant variables are there, lets keep it like this
+                    executeInstruction_split_2(thread_state,
+							opcode, 
+							operand2_0, operand2_1, 
+							operand1_0, operand1_1, 
+							&result_h, &result_l,
+							&flags, rs1, rd, asi, i,
+							data1, data0, vector_data_type, 
+							&dc_out, &ic_out);
+                }
 
 			thread_state->trap_vector = post_execute_trap_vector;
 			save_flag = (opcode == _SAVE_);
