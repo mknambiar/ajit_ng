@@ -2,6 +2,7 @@ struct dcache_out_struct {
 	void *d_context_port, *d_asi_port, *d_addr_port;
 	void *d_request_type_port, *d_byte_mask_port;
 	void *d_write_data_port;
+	void *d_read_data_port;
 	uint8_t push_done, mae, is_trap1, is_dw;
 	uint8_t is_load, is_store, is_atomic, is_swap, is_cswap, is_stbar;
 }
