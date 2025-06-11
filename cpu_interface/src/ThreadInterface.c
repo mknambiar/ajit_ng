@@ -111,6 +111,30 @@ void flushIcacheLine(int core_id, int cpu_id,
 	return;
 }
 
+//Read a doubleword from Dcache - sitaar version
+void readData64Base_sitar(uint8_t context,
+			uint8_t debug_flag, uint8_t asi, uint8_t byte_mask, 
+				uint32_t addr, dcache_out dc_out)
+{
+
+	uint8_t  request_type = (debug_flag ? REQUEST_TYPE_CCU_CACHE_READ : (REQUEST_TYPE_READ | IS_NEW_THREAD));
+
+	if(asi==0)
+	{
+		printf("\nCPU %d: Trying to read data with asi =0 ! addr=0x%x",cpu_id, addr);
+		//set breakpoint here
+		exit(1);
+	}
+
+	//make sure the address is double-word-aligned
+	//clear the last 3 bits.
+	addr=addr&(0xFFFFFFF8);
+
+	cpuDcacheAccess_push(context, asi, addr, request_type, byte_mask, 0x0, dc);
+		
+}
+
+
 //Read a doubleword from Dcache
 void readData64Base(int core_id, int cpu_id,
 			uint8_t context,
@@ -176,6 +200,17 @@ void readDataToDebug(int core_id, int cpu_id,
 			cpu_id, addr, asi, byte_mask, *data, *mae);
 	#endif
 }
+
+// sitar version of readData64
+void readData64_sitar(uint8_t context,  uint8_t asi, uint8_t byte_mask, uint32_t addr, dcache_out dc_out)
+{
+	readData64Base_sitar(context, 0,asi,byte_mask,addr, dc_out);
+	#ifdef DEBUG
+	printf("\nCPU %d: DCACHE READ DWORD addr=0x%x, asi=0x%x, DWORD read = 0x%lx, MAE = 0x%x",
+			cpu_id, addr, asi, *data, *mae);
+	#endif
+}
+
 void readData64(int core_id, int cpu_id, uint8_t context,  MmuState* ms, WriteThroughAllocateCache* dcache,
 			 uint8_t asi, uint8_t byte_mask, uint32_t addr, uint8_t* mae, uint64_t *data)
 {
@@ -200,6 +235,25 @@ void lockAndReadData(int core_id,
 		*data = data64;
 	else
 		*data = (data64)>>32;
+}
+
+//sitar version
+void lockAndReadData64_sitar(uint8_t context, uint8_t asi, uint8_t byte_mask, uint32_t addr, dcache_out dc_out)
+{
+	uint8_t  request_type = (REQUEST_TYPE_READ | IS_NEW_THREAD | SET_LOCK_FLAG);
+	if(asi==0)
+	{
+		printf("\nCPU %d: Trying to read data with asi =0 ! addr=0x%x", cpu_id, addr);
+		//set breakpoint here
+		exit(1);
+	}
+
+	//make sure the address is double-word-aligned
+	//clear the last 3 bits.
+	addr=addr&(0xFFFFFFF8);
+
+	cpuDcacheAccess_push(context, asi, addr, request_type, byte_mask, 0x0, dc_out);
+
 }
 
 void lockAndReadData64(int core_id,
@@ -236,6 +290,7 @@ void updateMmuFsrFar_push(
     uint32_t addr = 0x0;
     uint8_t asi = 0x0;
 	bool rc;
+	bool sync = true;
     
 	data64 = setSlice64(data64, 63,32, mmu_fsr);
 	data64 = setSlice64(data64, 31,0,  mmu_far);
@@ -280,6 +335,7 @@ void cpuDcacheAccess_push(uint8_t context, uint8_t asi, uint32_t addr, uint8_t r
 				uint8_t byte_mask, uint64_t data64, dcache_out *dc)
 {
     bool rc;
+	bool sync = true;
 	
 	rc = pushchar(dc->d_context_port, context, sync);
     assert(rc == true);	
@@ -303,6 +359,7 @@ void cpuIcacheAccess_push(uint8_t context, uint8_t asi, uint32_t addr, uint8_t r
 				uint8_t byte_mask, icache_out *ic)
 {
         bool rc;
+		bool sync = true;
 	
 ///    
         
@@ -323,9 +380,8 @@ void cpuIcacheAccess_push(uint8_t context, uint8_t asi, uint32_t addr, uint8_t r
 				
 				
 //write a double word (with a byte mask) to DCACHE for sitar
-void writeData64Base_sitar(int core_id, int cpu_id,
+void writeData64Base_sitar(
 				uint8_t context,
-				MmuState* ms, WriteThroughAllocateCache* dcache,
 				uint8_t debug_flag, uint8_t asi, uint32_t addr, 
 				uint8_t byte_mask, uint64_t data64, dcache_out *dc_out)
 {
@@ -378,7 +434,7 @@ void writeData64Base(int core_id, int cpu_id,
 	#endif
 }
 
-void writeDataBase_sitar(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
+void writeDataBase_sitar(uint8_t context, 
 			 uint8_t debug_flag, uint8_t asi, uint32_t addr, 
 			  uint8_t byte_mask, uint32_t data, dcache_out *dc_out)
 {
@@ -389,7 +445,7 @@ void writeDataBase_sitar(int core_id, int cpu_id, uint8_t context, MmuState* ms,
 		byte_mask=byte_mask<<4;
 		data64=data64<<32;
 	}
-	writeData64Base_sitar(core_id, cpu_id, context, ms, dcache,  debug_flag, asi, addr, byte_mask, data64, dc_out);
+	writeData64Base_sitar(context, debug_flag, asi, addr, byte_mask, data64, dc_out);
 
 }
 
@@ -408,11 +464,11 @@ void writeDataBase(int core_id, int cpu_id, uint8_t context, MmuState* ms, Write
 
 }
 
-void writeData64_sitar(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
+void writeData64_sitar(uint8_t context,
 			 uint8_t asi, uint32_t 
              addr, uint8_t byte_mask, uint64_t data, dcache_out *dc_out)
 {
-	writeData64Base_sitar(core_id, cpu_id, context, ms, dcache, 0,asi,addr,byte_mask, data, dc_out);
+	writeData64Base_sitar(context, 0,asi,addr,byte_mask, data, dc_out);
 }
 
 void writeData64(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
@@ -422,10 +478,9 @@ void writeData64(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteTh
 	writeData64Base(core_id, cpu_id, context, ms, dcache, 0,asi,addr,byte_mask, data, mae);
 }
 
-void writeData_sitar(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
-			 uint8_t asi, uint32_t addr, uint8_t byte_mask, uint32_t data, dcache_out *dc_out)
+void writeData_sitar(uint8_t context, uint8_t asi, uint32_t addr, uint8_t byte_mask, uint32_t data, dcache_out *dc_out)
 {
-	writeDataBase_sitar(core_id, cpu_id, context, ms, dcache, 0, asi,addr,byte_mask, data, dc_out);
+	writeDataBase_sitar(context, 0, asi,addr,byte_mask, data, dc_out);
 }
 
 void writeData(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
