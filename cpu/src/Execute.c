@@ -62,6 +62,239 @@ void execute_dcache_pull(uint64_t *read_data, (void *) read_data_port)
     assert(rc == true);		        
 }
 
+//
+//
+// Execute Load for sitar
+// 
+//
+uint32_t executeLoad_split_12(Opcode op, uint32_t operand1, uint32_t operand2, 
+				uint32_t *result_h, uint32_t *result_l,
+				StatusRegisters *status_reg, uint32_t trap_vector, 
+				uint8_t asi, uint8_t rd, uint8_t *flags, ThreadState *state, dcache_out dc_out)
+{
+
+#ifdef DEBUG
+	fprintf(stderr,"\tInfo : Load op-code=%x operand1=%x operand2=%x asi=%x\n", op, operand1, operand2 , asi);
+#endif 
+
+	uint32_t tv = trap_vector;
+
+	uint8_t addr_space = 0;
+
+	uint32_t address = operand1 + operand2;
+	
+	if (dc_out->push_done) {
+
+		uint32_t psr = status_reg->psr;
+		uint32_t fsr = status_reg->fsr;
+		uint8_t s = getBit32(psr, 7);
+		uint8_t ef = getBit32(psr, 12);
+		uint8_t ec = getBit32(psr, 13);
+		uint8_t is_not_alternate = ((op >= _LDSB_) && (op <= _LDCSR_));
+		uint8_t is_alternate     = ((op >= _LDSBA_) && (op <= _LDDA_));
+		uint8_t is_privilege_exception    = (is_alternate && !s);
+		uint8_t lock_flag = 0;
+
+		if(is_not_alternate)
+		{
+			setPageBit((CoreState*) state->parent_core_state, address); // flag all pages that were accessed.
+
+			if (!s) addr_space =10;
+			else	addr_space =11;
+		}else
+		{
+			if (s) 
+			{
+				//
+				// bit[6] of asi is lock flag
+				// in lda
+				lock_flag = ((asi & 0x40) != 0);
+
+				//
+				// lowest 6 bits of asi are the
+				// base asi bits.
+				//
+				addr_space= (asi & 0x3f);
+			}
+		}
+
+
+		if(is_privilege_exception)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _PRIVILEGED_INSTRUCTION_, 1);
+		}
+
+
+		uint8_t is_fp_trap = ((op == _LDF_ || op == _LDDF_ || op == _LDFSR_) && ((!ef) || !getBpFPUPresent(state)));
+
+		if(!is_privilege_exception && is_fp_trap)
+		{
+			tv = setBit32(tv, _TRAP_, 1) ;
+			tv = setBit32(tv, _FP_DISABLED_, 1) ;
+		}
+
+		uint8_t is_cp_trap = ((op == _LDC_ || op == _LDDC_ || op == _LDCSR_) && ((!ec) || !getBpCPPresent(state)));
+
+		if(!is_privilege_exception && is_cp_trap) 
+		{
+			tv =setBit32(tv, _TRAP_, 1);
+			tv =setBit32(tv, _CP_DISABLED_, 1);
+		}
+
+		uint8_t is_mem_address_not_aligned = ((((op == _LDD_) || (op == _LDDA_) || (op == _LDDF_) || (op == _LDDC_)) 
+					&& (getSlice32(address, 2, 0)))
+				|| (((op == _LD_) || 
+						(op == _LDA_) || (op == _LDF_) || (op == _LDFSR_) 
+						|| (op == _LDC_) || (op == _LDCSR_)) 
+					&& (getSlice32(address, 1, 0))) 
+				|| (((op == _LDSH_) || (op == _LDSHA_) || (op == _LDUH_) || (op == _LDUHA_)) 
+					&& (getBit32(address, 0))));
+
+		if(!is_privilege_exception && is_mem_address_not_aligned)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _MEM_ADDRESS_NOT_ALIGNED_, 1);
+		}
+
+		uint8_t is_trap = getBit32(tv, _TRAP_);
+
+		uint8_t invalid_fp_reg = ((op == _LDDF_) && getBit8(rd, 0));
+		if(!is_trap && invalid_fp_reg) 
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _INVALID_FP_REGISTER_, 1);
+		}
+		if(!is_trap && invalid_fp_reg) status_reg->fsr= setSlice32(fsr, 16, 14, 6);
+
+		// Note - Not implemented fp_sequence_error and cp_sequence_error
+
+		uint8_t is_trap1 = getBit32(tv, _TRAP_);
+		uint8_t mae1=0;
+		
+		dc_out->is_trap1 = is_trap1;
+		
+		if(!(dc_out->is_trap1))	
+		{
+			uint8_t byte_mask = calculateReadByteMask(op, address);
+			if(lock_flag)
+			{
+				lockAndReadData64_sitar(getThreadContext(state), addr_space, byte_mask,  address, dc_out);
+			}
+			else
+			{
+				readData64_sitar(getThreadContext(state), addr_space, byte_mask, address, dc_out);
+			}
+
+		}
+	} else {
+
+		bool rc;
+		uint64_t data64;
+		bool sync = true;
+		uint32_t data = 0;
+		uint8_t f = *flags;
+		
+		rc = pulldword(dc_out->d_read_data_port, &data64, sync);
+		assert(rc == true);
+		
+		if (getBit32(address,2)==1) data= &data64; else data = (data64)>>32;
+
+		//inform the HW server about the memory access
+		//inform_HW_server(state, GDB_MEM_ACCESS, address);
+
+		if(dc_out->mae)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
+		}
+
+		uint8_t byte = 0;
+		uint32_t word1, word0;
+		word1 = word0 = 0;
+
+
+		uint8_t is_byte_inst = ((op == _LDSB_) || (op == _LDSBA_) || (op == _LDUB_) || (op == _LDUBA_));
+		uint8_t address_10 = getSlice32(address, 1, 0);
+
+		if(is_byte_inst)
+		{
+			if(address_10 == 0) byte = getSlice32(data, 31, 24) ;
+			else if(address_10 == 1) byte = getSlice32(data, 23, 16) ;
+			else if(address_10 == 2) byte = getSlice32(data, 15, 8)  ;
+			else if(address_10 == 3) byte = getSlice32(data, 7, 0)   ;
+		}
+
+		if((op == _LDSB_) || (op == _LDSBA_)) word0 = signExtendByte(byte);
+		if((op == _LDUB_) || (op == _LDUBA_)) word0 = zeroExtendByte(byte);
+
+		uint16_t half_word = 0;
+		uint8_t is_half_word_inst = ((op == _LDSH_) || (op == _LDSHA_) || (op == _LDUH_) || (op == _LDUHA_));
+
+		if(is_half_word_inst)
+		{
+
+			if(address_10 == 0) half_word = getSlice32(data, 31, 16) ;
+			else if(address_10 == 2) half_word = getSlice32(data, 15, 0) ;
+		}
+
+		if((op == _LDSH_) || (op == _LDSHA_)) word0= signExtendHalfWord(half_word) ;
+		if((op == _LDUH_) || (op == _LDUHA_)) word0= zeroExtendHalfWord(half_word) ;
+
+		if(!is_byte_inst && !is_half_word_inst) word0= data;
+
+		is_trap = getBit32(tv, _TRAP_);
+
+
+		if (!is_trap && (op == _LDFSR_)) status_reg->fsr =  word0 ;
+		if (!is_trap && (op == _LDCSR_)) status_reg->csr =  word0 ;
+
+		uint8_t is_double_word_inst = (op == _LDD_) || (op == _LDDA_) || (op == _LDDF_) || (op == _LDDC_);
+
+		uint8_t mae2 = 0;
+		uint8_t skip_read = (is_trap || !is_double_word_inst);
+		if(!skip_read)	
+		{
+			// readData(addr_space, (address + 4), &mae2, &word1);
+			word1 = (data64);
+			mae2 = mae1;
+
+			//inform the HW server about the memory access
+			// inform_HW_server(state, GDB_MEM_ACCESS, address+4);
+		}
+		if(mae2)
+		{	tv = setBit32(tv, _TRAP_, 1) ;
+			tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
+		}
+			
+		if(global_verbose_flag )
+		{
+			if (is_trap)
+			{
+				fprintf(stderr,"EXCEPTION: at pc=0x%x, load from 0x%x, asi=0x%x.\n", 
+						status_reg->pc, address, addr_space);
+			}
+			else 
+			{
+				fprintf (stderr, "LOAD: at pc=0x%x from  addr=0x%x (asi=0x%x)\n",
+						status_reg->pc, address, addr_space);
+			} 
+		}
+
+		if(is_double_word_inst) 		f = setBit8(f, _DOUBLE_RESULT_, 1);
+		if((op == _LDF_) || (op == _LDDF_)) 	f = setBit8(f, _FLOAT_INSTRUCTION_, 1);
+		//uint8_t no_write_back = ((op == _LDC_) || (op == _LDFSR_) || (op == _LDCSR_) || (op == _LDDC_));
+		uint8_t no_write_back = ((op == _LDC_) || (op == _LDCSR_) || (op == _LDDC_));
+		if(!no_write_back ) f = setBit8(f, _NEED_WRITE_BACK_, 1);
+
+		*result_l = (is_double_word_inst ? word1 : word0);
+		*result_h = word0;
+		*flags = f;
+	} // if (dc_out->push_done)
+	
+	return tv;
+}
+
                 
 //
 //
@@ -295,16 +528,18 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 	fprintf(stderr,"\tInfo : Store op-code=%x operand1=%x operand2=%x asi=%x\n", op, operand1, operand2, asi);
 #endif 
 	uint32_t tv = trap_vector;
-	uint32_t psr = status_reg->psr;
-	uint32_t fsr = status_reg->fsr;
-	uint8_t s = getBit32(psr, 7);
-	uint8_t ef = getBit32(psr, 12);
-	uint8_t ec = getBit32(psr, 13);
-	uint8_t addr_space = 0;
 
-	uint32_t address = operand1 + operand2;
 
 	if (!(dc_out->push_done)) {
+		uint32_t psr = status_reg->psr;
+		uint32_t fsr = status_reg->fsr;
+		uint8_t s = getBit32(psr, 7);
+		uint8_t ef = getBit32(psr, 12);
+		uint8_t ec = getBit32(psr, 13);
+		uint8_t addr_space = 0;
+
+		uint32_t address = operand1 + operand2;
+		
 		uint8_t is_alternate = ((op >= _STBA_) && (op <= _STDA_));
 		uint8_t is_privileged = ((is_alternate || op == _STDFQ_ || op == _STDCQ_) && (!s));
 
@@ -436,9 +671,7 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 			if(!(dc_out->is_dw))
 			{
 					//perform a memory access if this is not a double-word store
-					writeData_sitar(state->core_id, state->thread_id,  getThreadContext(state),
-							state->mmu_state, state->dcache,
-							addr_space, address, byte_mask, data0, dc_out);
+					writeData_sitar(getThreadContext(state), addr_space, address, byte_mask, data0, dc_out);
 				}
 				else
 				{
@@ -446,9 +679,7 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 					data64 = data64<<32 | data1;
 					
 					//This is a double word store
-					writeData64_sitar(state->core_id, state->thread_id,  getThreadContext(state),
-							state->mmu_state, state->dcache,
-							addr_space, address , 0xFF, data64, dc_out);
+					writeData64_sitar(getThreadContext(state), addr_space, address , 0xFF, data64, dc_out);
 
 				}
 			}
