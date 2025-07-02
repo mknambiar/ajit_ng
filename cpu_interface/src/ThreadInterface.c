@@ -44,6 +44,7 @@ void readInstructionPair(int core_id,
 
 
 //read an Instruction by accessing the instruction fetch interface
+//This function has not been used
 void readInstruction(int core_id, int cpu_id,
 			uint8_t context, 
 			MmuState* ms, WriteThroughAllocateCache* icache,
@@ -129,7 +130,7 @@ void readData64Base_sitar(uint8_t context,
 	//make sure the address is double-word-aligned
 	//clear the last 3 bits.
 	addr=addr&(0xFFFFFFF8);
-
+	dc_out->read_dword = 1;
 	cpuDcacheAccess_push(context, asi, addr, request_type, byte_mask, 0x0, dc);
 		
 }
@@ -160,6 +161,24 @@ void readData64Base(int core_id, int cpu_id,
 	*mae 	= (*mae & 0x1);
 }
 
+//read a word from DCACHE sitaar version
+void readDataBase_sitar(uint8_t context, uint8_t debug_flag, uint8_t asi, uint8_t byte_mask, uint32_t addr, dcache_out dc_out)
+{
+
+	uint64_t data64;
+	uint8_t byte_mask_64 = (addr & 0x4) ? byte_mask : (byte_mask << 4);
+	
+	dc_out->even_odd = getBit32(addr,2);
+	dc_out->read_dword = 0;
+
+	readData64Base_sitar(context, debug_flag, asi, byte_mask_64, addr, dc_out);
+
+	//if(getBit32(addr,2)) 
+	//	*data = data64;
+	//else
+	//	*data = (data64)>>32;
+}
+
 //read a word from DCACHE.
 void readDataBase(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache,
 			uint8_t debug_flag, uint8_t asi, uint8_t byte_mask,
@@ -175,6 +194,17 @@ void readDataBase(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteT
 		*data = data64;
 	else
 		*data = (data64)>>32;
+}
+
+//sitar version of readData
+void readData_sitar(uint8_t context,  uint8_t asi,  uint8_t byte_mask, uint32_t addr, dcache_out dc_out)
+{
+	readDataBase_sitar(context, 0,asi,byte_mask,addr, dc_out);
+	#ifdef DEBUG
+	printf("\nCPU %d: DCACHE READ WORD addr=0x%x, asi=0x%x, byte_mask=0x%x, WORD read = 0x%x, MAE = 0x%x",
+			cpu_id, addr, asi,  byte_mask, *data, *mae);
+	#endif
+
 }
 
 void readData(int core_id, int cpu_id, uint8_t context,  MmuState* ms, WriteThroughAllocateCache* dcache,
@@ -220,6 +250,24 @@ void readData64(int core_id, int cpu_id, uint8_t context,  MmuState* ms, WriteTh
 			cpu_id, addr, asi, *data, *mae);
 	#endif
 }
+
+// sitar version of lockAndReadData
+void lockAndReadData_sitar(uint8_t context, uint8_t asi, uint8_t byte_mask, uint32_t addr, dcache_out dc_out)
+{
+	uint64_t data64;
+
+	uint8_t byte_mask_64 = (addr & 0x4) ? byte_mask : (byte_mask << 4);
+	dc_out->even_odd = getBit32(addr,2);
+	dc_out->read_dword = 0;
+
+	lockAndReadData64_sitar(context, asi, byte_mask_64, addr, dc_out);
+
+/* 	if(getBit32(addr,2)) 
+		*data = data64;
+	else
+		*data = (data64)>>32; */
+}
+
 
 void lockAndReadData(int core_id,
 			int cpu_id,
@@ -350,6 +398,7 @@ void cpuDcacheAccess_push(uint8_t context, uint8_t asi, uint32_t addr, uint8_t r
     rc = pushdword(dc->d_write_data_port, data64, sync); 
     assert(rc == true);		    
 	dc->push_done = 1;
+	dc->cache_transactions++;
 	
 }
 
