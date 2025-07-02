@@ -52,13 +52,15 @@ void execute_dcache_push(
 }
 
 //
-// D cache access push helper function for sitaar implementation
+// D cache access pull helper function for sitaar implementation
 //
 
-void execute_dcache_pull(uint64_t *read_data, (void *) read_data_port)
+void execute_dcache_pull(uint32_t *read_data, (void *) read_data_port, uint8_t even_odd)
 {
-    // This should be a function by itself		    
-    rc = pullword(read_data_port, read_data, sync); 
+    // This should be a function by itself
+	bool sync = true;
+	
+    rc = pullword_fromdword(read_data_port, read_data, sync, even_odd); 
     assert(rc == true);		        
 }
 
@@ -187,6 +189,9 @@ uint32_t executeLoad_split_12(Opcode op, uint32_t operand1, uint32_t operand2,
 			}
 
 		}
+		
+		dc_out->cache_transactions = 1;
+		
 	} else {
 
 		bool rc;
@@ -674,7 +679,7 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 					writeData_sitar(getThreadContext(state), addr_space, address, byte_mask, data0, dc_out);
 				}
 				else
-				{
+				{E
 					uint64_t data64 = data0;
 					data64 = data64<<32 | data1;
 					
@@ -684,6 +689,8 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 				}
 			}
 		}
+		
+		dc_out->cache_transactions = 1;
 	
 	} else {
 
@@ -967,6 +974,144 @@ void testAndSetBlockLdstFlags(ThreadState* state, uint8_t byte_flag, uint8_t wor
 	}
 	setPbBlockLdstByte(state, byte_flag);
 	setPbBlockLdstWord(state, word_flag);
+}
+
+// for sitar implementation
+uint32_t executeLdstub_split_12(Opcode op, 
+				uint32_t operand1, uint32_t operand2, uint32_t *result, 
+				StatusRegisters *status_reg, StateUpdateFlags* reg_update_flags,
+				uint32_t trap_vector, uint8_t asi, uint8_t *flags,
+				ThreadState* state, dcache_out *dc_out)
+{
+#ifdef DEBUG
+	fprintf(stderr,"\tInfo : LDSTUB  op-code=%x operand1=%x operand2=%x asi=%x\n", op, operand1, operand2,asi);
+#endif 
+	uint32_t tv = trap_vector;
+	uint32_t psr = status_reg->psr;
+	uint8_t s = getBit32(psr, 7);
+	uint8_t f = *flags;
+
+	uint8_t addr_space = 0;
+	uint32_t data = 0;
+
+	if ((!(dc_out->push_done)) && (dc_out->cache_transactions == 0)) {
+		
+		uint32_t address = operand1 + operand2;
+
+		uint8_t is_not_alternate = (op == _LDSTUB_);
+		if(is_not_alternate)
+		{
+			if(!s) addr_space =10;
+			else   addr_space =11;
+		}
+
+		uint8_t is_alternate = (op == _LDSTUBA_);
+		uint8_t is_privileged = (is_alternate && !s);
+		
+		if(is_privileged)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _PRIVILEGED_INSTRUCTION_, 1);
+		}
+
+		
+		if(is_alternate && s) {addr_space= asi;}
+
+		//
+		// wait until both BlockLdstByte and BlockLdstWord are 0
+		//
+		if(!is_privileged)
+			testAndSetBlockLdstFlags(state, 1, 0); //This part is useless - we will keep and see if there is a problem
+		uint8_t mae1=0;
+
+		uint8_t byte_mask = 0;
+
+		uint8_t address_10 = getSlice32(address, 1, 0);
+		if(address_10 == 0) byte_mask = 0x8 ;
+		if(address_10 == 1) byte_mask = 0x4 ;
+		if(address_10 == 2) byte_mask = 0x2 ;
+		if(address_10 == 3) byte_mask = 0x1 ;
+
+		if(!is_privileged) 
+			lockAndReadData_sitar(getThreadContext(state), addr_space, byte_mask, address, dc_out);
+		
+		
+	} else if ((!(dc_out->push_done)) && (dc_out->cache_transactions == 1)) {
+
+		if(dc_out->mae)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
+		}
+
+		uint8_t is_trap = getBit32(tv, _TRAP_);
+
+		dc_out->is_trap1 = is_trap;
+
+		uint8_t mae2 = 0;
+		if(is_trap)
+		{
+			// read from init-pc to clear downstream MP locks.	
+			uint32_t ign_rdata;
+			uint8_t  ign_mae = 0;
+			
+			// do a dummy read from initial pc. to clear the lock.
+			readData_sitar(getThreadContext(state),	0x20, state->init_pc, 0xF, dc_out);
+
+			// should never return an mae on bypass access from init pc.
+			assert(!ign_mae);
+		}
+		else
+		{
+			writeData_sitar(getThreadContext(state), addr_space, address, byte_mask, 0xFFFFFFFF, dc_out);
+		}
+
+
+	} else {
+	
+		if (dc_out->is_trap1) {
+			assert(!dc_out->mae)			
+		} else {
+
+			//Log information about the store
+			reg_update_flags->store_active=1;
+			reg_update_flags->store_asi=addr_space;
+			reg_update_flags->store_addr=address;
+			reg_update_flags->store_double_word=0;
+			reg_update_flags->store_byte_mask=
+					(((address & 0x4) != 0)  ? byte_mask : (byte_mask << 4));
+			reg_update_flags->store_word_low=0xFFFFFFFF;
+			
+		}
+		// clear the LdstByte flag.
+		setPbBlockLdstByte(state, 0); //This part is useless - we will keep and see if there is a problem
+
+		if(dc_out->mae)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
+		}
+
+		uint8_t is_trap1 = getBit32(tv, _TRAP_);
+		uint32_t word = 0;
+
+		if(!is_trap1)
+		{
+
+			if (address_10 == 0) word = zeroExtendByte(getSlice32(data, 31, 24)) ;
+			if (address_10 == 1) word = zeroExtendByte(getSlice32(data, 23, 16)) ;
+			if (address_10 == 2) word = zeroExtendByte(getSlice32(data, 15, 8)) ;
+			if (address_10 == 3) word = zeroExtendByte(getSlice32(data, 7, 0))  ;
+		}
+
+		f = setBit8(f, _NEED_WRITE_BACK_, 1);
+
+		*result = word;
+		*flags = f;
+		
+	}
+
+	return tv;
 }
 
 uint32_t executeLdstub(Opcode op, 
@@ -2560,8 +2705,7 @@ uint32_t executeFlush_split_12(uint32_t flush_addr, uint32_t trap_vector, StateU
     
     if(!(dc_out->push_done))
     					
-        writeData_sitar(state->core_id, state->thread_id,  getThreadContext(state),
-                state->mmu_state, state->dcache, ASI_FLUSH_I_D_CONTEXT, flush_addr, 0x00, 0x00, dc_out);
+        writeData_sitar(getThreadContext(state), ASI_FLUSH_I_D_CONTEXT, flush_addr, 0x00, 0x00, dc_out);
                 
     else if(dc->mae) {
 		//An error occured while executing FLUSH!
@@ -2970,13 +3114,9 @@ uint32_t executeInstruction_split_2(
 	// for 32-bit case
 	uint32_t operand1 = operand1_0;
 	uint32_t operand2 = operand2_0;
-	dc_out->is_load = is_load;
-	dc_out->is_store = is_store;
-	dc_out->is_atomic = is_atomic;
-	dc_out->is_swap = is_swap;
-	dc_out->is_cswap = is_cswap;
-	dc_out->is_stbar = is_stbar;
+
 	dc->push_done = 0;
+	ic_out->push_done = 0;
 	
 	if(dc_out->is_load)  		tv = 	executeLoad_split_12(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s, dc_out);
 	else if(dc_out->is_store) 	tv = 	executeStore_split_12(opcode, operand1, operand2, result_h, result_l, data0, data1, status_reg,trap_vector, asi, rd, s, dc_out);
