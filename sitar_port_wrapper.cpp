@@ -75,6 +75,27 @@ namespace sitar {
             return rc;
 
         }
+		
+        bool pullword_fromdword(void *obj, uint32_t *value, bool sync, uint8_t even_odd) {
+            token<sizeof(uint64_t)> tval;
+			uint64_t data64;
+            bool rc;
+            
+            if (sync == false)
+                rc = static_cast<inport<sizeof(uint32_t)>*>(obj)->pull(tval);
+            else
+                while (!(rc = static_cast<inport<sizeof(uint32_t)>*>(obj)->pull(tval)));
+            
+            memcpy(data64, tval.data(), sizeof(uint32_t));
+			
+			if(even_odd) 
+				*value = data64;
+			else
+				*value = (data64)>>32;
+	
+            return rc;
+
+        }
 
         bool pushword(void *obj,uint32_t value, bool sync) {
             token<sizeof(uint32_t)> tval;

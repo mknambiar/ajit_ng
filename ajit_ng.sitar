@@ -311,6 +311,8 @@ behavior
 		{
 			//Execute instruction 
             //Lot of redundant variables are there, lets keep it like this
+			dc_out.cache_transactions = 0;
+			dc_out.func = NULL;
 			post_execute_trap_vector = executeInstruction_split_1(thread_state,
 							opcode, 
 							operand2_0, operand2_1, 
@@ -322,7 +324,7 @@ behavior
                             
 			done_pull = d_done_pull = i_done_pull = 0;
 									
-			if ((dc_out->push_done) || (ic_out->push_done)) {
+			while ((dc_out->push_done) || (ic_out->push_done)) {
 
 				do
 					wait until (this_phase==0);
@@ -338,7 +340,7 @@ behavior
 				if (i_done_pull) memcpy(&ic_out->mae, i_mae_token.data(), sizeof(uint8_t));
 					    
 			    //Lot of redundant variables are there, lets keep it like this
-				post_execute_trap_vector = executeInstruction_split_2(thread_state,
+				post_execute_trap_vector |= executeInstruction_split_2(thread_state,
 					opcode, 
 					operand2_0, operand2_1, 
 					operand1_0, operand1_1, 
