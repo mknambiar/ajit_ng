@@ -190,7 +190,8 @@ uint32_t executeLoad_split_12(Opcode op, uint32_t operand1, uint32_t operand2,
 
 		}
 		
-		dc_out->cache_transactions = 1;
+        dc_out->address = address;
+        dc_out->addr_space = addr_space;
 		
 	} else {
 
@@ -202,6 +203,8 @@ uint32_t executeLoad_split_12(Opcode op, uint32_t operand1, uint32_t operand2,
 		
 		rc = pulldword(dc_out->d_read_data_port, &data64, sync);
 		assert(rc == true);
+        address = dc_out->address;
+        addr_space = dc_out->addr_space;
 		
 		if (getBit32(address,2)==1) data= &data64; else data = (data64)>>32;
 
@@ -533,7 +536,8 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 	fprintf(stderr,"\tInfo : Store op-code=%x operand1=%x operand2=%x asi=%x\n", op, operand1, operand2, asi);
 #endif 
 	uint32_t tv = trap_vector;
-
+    uint8_t addr_space = 0;
+    uint32_t address;
 
 	if (!(dc_out->push_done)) {
 		uint32_t psr = status_reg->psr;
@@ -541,9 +545,9 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 		uint8_t s = getBit32(psr, 7);
 		uint8_t ef = getBit32(psr, 12);
 		uint8_t ec = getBit32(psr, 13);
-		uint8_t addr_space = 0;
 
-		uint32_t address = operand1 + operand2;
+
+		address = operand1 + operand2;
 		
 		uint8_t is_alternate = ((op >= _STBA_) && (op <= _STDA_));
 		uint8_t is_privileged = ((is_alternate || op == _STDFQ_ || op == _STDCQ_) && (!s));
@@ -690,9 +694,13 @@ uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2,
 			}
 		}
 		
-		dc_out->cache_transactions = 1;
-	
+        dc_out->address = address;
+        dc_out->addr_space = addr_space;
+
 	} else {
+        
+        address = dc_out->address;
+        addr_space = dc_out->addr_space;
 
 		if(!(dc_out->is_trap1))	
 		{
@@ -993,10 +1001,12 @@ uint32_t executeLdstub_split_12(Opcode op,
 
 	uint8_t addr_space = 0;
 	uint32_t data = 0;
+    uint32_t address;
+    uint8_t byte_mask = 0;
 
 	if ((!(dc_out->push_done)) && (dc_out->cache_transactions == 0)) {
 		
-		uint32_t address = operand1 + operand2;
+		
 
 		uint8_t is_not_alternate = (op == _LDSTUB_);
 		if(is_not_alternate)
@@ -1014,7 +1024,8 @@ uint32_t executeLdstub_split_12(Opcode op,
 			tv = setBit32(tv, _PRIVILEGED_INSTRUCTION_, 1);
 		}
 
-		
+		address = operand1 + operand2;
+        
 		if(is_alternate && s) {addr_space= asi;}
 
 		//
@@ -1024,8 +1035,6 @@ uint32_t executeLdstub_split_12(Opcode op,
 			testAndSetBlockLdstFlags(state, 1, 0); //This part is useless - we will keep and see if there is a problem
 		uint8_t mae1=0;
 
-		uint8_t byte_mask = 0;
-
 		uint8_t address_10 = getSlice32(address, 1, 0);
 		if(address_10 == 0) byte_mask = 0x8 ;
 		if(address_10 == 1) byte_mask = 0x4 ;
@@ -1034,9 +1043,24 @@ uint32_t executeLdstub_split_12(Opcode op,
 
 		if(!is_privileged) 
 			lockAndReadData_sitar(getThreadContext(state), addr_space, byte_mask, address, dc_out);
-		
-		
+		        
+        dc_out->address = address;
+        dc_out->addr_space = addr_space;        
+        dc_out->byte_mask = byte_mask;
+                
 	} else if ((!(dc_out->push_done)) && (dc_out->cache_transactions == 1)) {
+
+        bool rc;
+        
+		rc = pullword_fromdword(dc_out->d_read_data_port, &data, sync, dc_out->even_odd);
+		assert(rc == true);
+        
+        
+        address = dc_out->address;
+        addr_space = dc_out->addr_space;
+        byte_mask = dc_out->byte_mask;
+        dc_out->data = data;
+        
 
 		if(dc_out->mae)
 		{
@@ -1066,9 +1090,13 @@ uint32_t executeLdstub_split_12(Opcode op,
 			writeData_sitar(getThreadContext(state), addr_space, address, byte_mask, 0xFFFFFFFF, dc_out);
 		}
 
-
 	} else {
-	
+
+        address = dc_out->address;
+        addr_space = dc_out->addr_space;
+        byte_mask = dc_out->byte_mask;
+        data = dc_out->data;
+
 		if (dc_out->is_trap1) {
 			assert(!dc_out->mae)			
 		} else {
@@ -1236,6 +1264,132 @@ uint32_t executeLdstub(Opcode op,
 	*result = word;
 	*flags = f;
 
+	return tv;
+}
+
+// The sitar version implementation
+
+uint32_t executeSwap_split_12( Opcode op, 
+			uint32_t operand1, uint32_t operand2, uint32_t *result, 
+			StatusRegisters *status_reg, StateUpdateFlags* reg_update_flags, 
+			uint32_t trap_vector, uint8_t asi, uint8_t imm_flag,
+			uint32_t temp, uint8_t *flags,
+			ThreadState* state)
+{
+	//We assume a uniprocessor system.
+	//Hence a swap is simply a load followed by a store.
+	
+#ifdef DEBUG
+	fprintf(stderr,"\tInfo : DEBUGAP op-code=%x operand1=%x operand2=%x asi=%x\n", op, operand1, operand2,asi);
+#endif 
+	uint32_t tv = trap_vector;
+	uint32_t psr = status_reg->psr;
+	uint8_t s = getBit32(psr, 7);
+	uint8_t f = *flags;
+	uint8_t addr_space = 0;
+	uint32_t address = 0;
+	
+	uint8_t is_privileged_trap = 0;
+	uint8_t is_illegal_instr_trap = 0;
+	uint8_t is_alignment_trap = 0;
+
+	if(op==_SWAP_)
+	{
+		address = operand1+operand2;
+		if(s==0) addr_space = 10;
+		else addr_space = 11;
+	}
+	else if(op == _SWAPA_)
+	{
+		if(s==0)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _PRIVILEGED_INSTRUCTION_, 1);
+			is_privileged_trap = 1;
+		}
+		else if(imm_flag)
+		{
+			tv = setBit32(tv, _TRAP_, 1);
+			tv = setBit32(tv, _ILLEGAL_INSTRUCTION_, 1);
+			is_illegal_instr_trap = 1;
+		}
+		else
+		{
+			address = operand1 + operand2;
+			addr_space=asi;
+		}
+	}
+
+
+	uint8_t b2bits = getSlice32(address, 1, 0);
+	if(!is_privileged_trap && !is_illegal_instr_trap && (b2bits != 0))
+	{
+		tv = setBit32(tv, _TRAP_, 1) ;
+		tv = setBit32(tv, _MEM_ADDRESS_NOT_ALIGNED_, 1);
+		is_alignment_trap = 1;
+	}
+
+
+	uint32_t word = 0;
+	uint8_t mae1 = 0;
+	if(!is_privileged_trap && !is_illegal_instr_trap && !is_alignment_trap) 
+	{
+		// wait until BlockLdstByte and BlockLdstWord are both 0
+		testAndSetBlockLdstFlags(state, 0, 1);
+		uint8_t load_byte_mask = 0xf;
+		lockAndReadData(state->core_id, state->thread_id, getThreadContext(state),
+				state->mmu_state,  state->dcache, addr_space, load_byte_mask, address, &mae1, &word);
+		if(mae1)
+		{
+			tv = setBit32(tv, _TRAP_, 1) ;
+			tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
+		}
+	}
+
+	uint8_t is_trap = getBit32(tv, _TRAP_);
+	uint8_t skip_write =  is_trap;
+	uint8_t mae2 = 0;
+	if(skip_write)
+	{
+		uint32_t ign_rdata;
+		uint8_t  ign_mae = 0;
+		
+		// do a dummy read from initial pc.
+		readData(state->core_id, state->thread_id, getThreadContext(state),
+			state->mmu_state, state->dcache, 0x20, state->init_pc, 0xF, &ign_mae, &ign_rdata);
+
+		// should never return an mae on bypass access from init pc.
+		assert(!ign_mae);
+	}
+	else
+	{
+		writeData(state->core_id, state->thread_id, getThreadContext(state),
+				state->mmu_state, state->dcache,  addr_space, address, 0xF, temp,&mae2);
+		
+		//Log information about the store
+		reg_update_flags->store_active=1;
+		reg_update_flags->store_asi=addr_space;
+		reg_update_flags->store_addr=address;
+		reg_update_flags->store_double_word=0;
+		reg_update_flags->store_byte_mask=
+				(((address & 0x4) != 0) ? 0xF : 0xF0);
+		reg_update_flags->store_word_low=temp;
+
+	}
+		
+	// lock is cleared even if there is a trap.
+	setPbBlockLdstWord(state, 0);
+
+	if(mae2)
+	{
+		tv = setBit32(tv, _TRAP_, 1) ;
+		tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1) ;
+	}
+
+	f = setBit8(f, _NEED_WRITE_BACK_, 1);
+	*flags =  f;
+
+	*result =  word;
 	return tv;
 }
 
@@ -2909,6 +3063,7 @@ uint32_t executeInstruction_split_1(
 	dc_out->is_stbar = is_stbar;
     ic_out->is_flush = is_flush;
 	dc->push_done = 0;
+    dc_out->cache_transactions = 0;
     ic->push_done = 0;
 	
 	if(is_load)  		tv = 	executeLoad_split_12(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s, dc_out);
