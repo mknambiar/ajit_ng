@@ -545,6 +545,22 @@ void writeDataFromDebug(int core_id, int cpu_id, uint8_t context, MmuState* ms, 
 }
 
 //send an STBAR request to the Dcache
+void sendSTBAR_sitar(uint8_t context, dcache_out *dc_out)
+{
+
+	// ignored..
+	uint8_t mae = 0;
+	uint64_t read_data = 0;
+
+	//send request
+	cpuDcacheAccess_push(context, 0, 0, REQUEST_TYPE_STBAR | IS_NEW_THREAD,	0,  0, dc_out);
+	
+	#ifdef DEBUG
+	printf("\nCPU %d: Sent STBAR request to the Dcache", cpu_id);
+	#endif
+}
+
+//send an STBAR request to the Dcache
 void sendSTBAR(int core_id, int cpu_id, uint8_t context, MmuState* ms, WriteThroughAllocateCache* dcache)
 {
 
