@@ -1079,6 +1079,9 @@ uint32_t executeLdstub_split_12(Opcode op,
 			uint32_t ign_rdata;
 			uint8_t  ign_mae = 0;
 			
+			//Mark that you have done a trap read
+			dc_out->trap_read = 1;
+			
 			// do a dummy read from initial pc. to clear the lock.
 			readData_sitar(getThreadContext(state),	0x20, state->init_pc, 0xF, dc_out);
 
@@ -1092,10 +1095,23 @@ uint32_t executeLdstub_split_12(Opcode op,
 
 	} else {
 
+		//if there was an erroneous read earlier consume the data on the port
+		if (dc_out->trap_read == 1) { 
+			bool rc;
+			uint64_t ignore;
+			bool sync = true;
+			
+			rc = pulldword(dc_out->d_read_data_port, &ignore, sync);
+			assert(rc == true);
+
+		}
+
+
         address = dc_out->address;
         addr_space = dc_out->addr_space;
         byte_mask = dc_out->byte_mask;
         data = dc_out->data;
+
 
 		if (dc_out->is_trap1) {
 			assert(!dc_out->mae)			
@@ -1274,7 +1290,7 @@ uint32_t executeSwap_split_12( Opcode op,
 			StatusRegisters *status_reg, StateUpdateFlags* reg_update_flags, 
 			uint32_t trap_vector, uint8_t asi, uint8_t imm_flag,
 			uint32_t temp, uint8_t *flags,
-			ThreadState* state)
+			ThreadState* state, dcache_out *dc_out)
 {
 	//We assume a uniprocessor system.
 	//Hence a swap is simply a load followed by a store.
@@ -1333,7 +1349,6 @@ uint32_t executeSwap_split_12( Opcode op,
             is_alignment_trap = 1;
         }
 
-        uint32_t word = 0;
         uint8_t mae1 = 0;
         if(!is_privileged_trap && !is_illegal_instr_trap && !is_alignment_trap) 
         {
@@ -1375,6 +1390,9 @@ uint32_t executeSwap_split_12( Opcode op,
             uint32_t ign_rdata;
             uint8_t  ign_mae = 0;
 
+			//Mark that you have done a trap read
+			dc_out->trap_read = 1;
+			
 			// do a dummy read from initial pc. to clear the lock.
 			readData_sitar(getThreadContext(state),	0x20, state->init_pc, 0xF, dc_out);
             
@@ -1387,7 +1405,18 @@ uint32_t executeSwap_split_12( Opcode op,
         }
 
     } else {
+		
+		//if there was an erroneous read earlier consume the data on the port
+		if (dc_out->trap_read == 1) { 
+			bool rc;
+			uint64_t ignore;
+			bool sync = true;
+			
+			rc = pulldword(dc_out->d_read_data_port, &ignore, sync);
+			assert(rc == true);
 
+		}
+		
         address = dc_out->address;
         addr_space = dc_out->addr_space;
         byte_mask = dc_out->byte_mask;
@@ -1548,6 +1577,178 @@ uint32_t executeSwap( Opcode op,
 	*result =  word;
 	return tv;
 }
+
+// 32 bit compare and swap in sitaar
+uint32_t executeCswap_split_12( Opcode op, 
+				uint32_t operand1, 
+				uint32_t operand2,
+				uint32_t *result, 
+				uint32_t operand3,
+				uint32_t trap_vector, uint8_t asi, uint8_t imm_flag,
+				ThreadState* state,
+				StatusRegisters *status_reg, 
+				StateUpdateFlags*  reg_update_flags,
+				uint8_t *flags, dcache_out *dc_out)
+{
+#ifdef DEBUG
+	fprintf(stderr,"\tInfo : CSWAP  op-code=0x%x operand1=0x%x operand2=0x%x operand3=0x%x\n", op, 
+			operand1, 
+			operand2, 
+			operand3);
+#endif 
+
+	uint32_t tv = trap_vector;
+	uint32_t psr = status_reg->psr;
+	uint8_t s = getBit32(psr, 7);
+	uint8_t f = *flags;
+	uint8_t addr_space = 0;
+	uint32_t address = 0;
+	uint32_t read_data;
+	uint8_t is_privileged_trap = 0;
+	uint8_t is_illegal_instr_trap = 0;
+	
+	if ((!(dc_out->push_done)) && (dc_out->cache_transactions == 0)) {
+	
+		if(op==_CSWAP_)
+		{
+			address = operand1;
+			addr_space = (s ? 11 : 10);
+		}
+		else if(op == _CSWAPA_)
+		{
+			if(s==0)
+			{
+				tv = setBit32(tv, _TRAP_, 1);
+				tv = setBit32(tv, _PRIVILEGED_INSTRUCTION_, 1);
+				is_privileged_trap = 1;
+			}
+			else if(imm_flag)
+			{
+				tv = setBit32(tv, _TRAP_, 1);
+				tv = setBit32(tv, _ILLEGAL_INSTRUCTION_, 1);
+				is_illegal_instr_trap = 1;
+			}
+			else
+			{
+				address =  operand1;
+				addr_space=asi;
+			}
+		}
+
+
+		// address must be single word aligned.
+		uint8_t is_alignment_trap = 0;
+		uint8_t b2bits = getSlice32(address, 1, 0);
+		if(!is_privileged_trap && !is_illegal_instr_trap && (b2bits != 0))
+		{
+			tv = setBit32(tv, _TRAP_, 1) ;
+			tv = setBit32(tv, _MEM_ADDRESS_NOT_ALIGNED_, 1);
+			is_alignment_trap = 1;
+		}
+
+
+		uint8_t  mae 	   = 0;
+
+		// byte mask for 32-bit read  (this is expanded to 64-bit read in lockAndReadData).
+		uint8_t byte_mask = 0xf;
+
+		if(!is_privileged_trap && !is_illegal_instr_trap && !is_alignment_trap) 
+		{
+
+			lockAndReadData_sitar(getThreadContext(state), addr_space, byte_mask, address, dc_out)
+						
+            dc_out->address = address;
+            dc_out->addr_space = addr_space;        
+            dc_out->byte_mask = byte_mask;
+
+		}
+
+    } else if ((!(dc_out->push_done)) && (dc_out->cache_transactions == 1)) {
+    
+        bool rc;
+        
+		rc = pullword_fromdword(dc_out->d_read_data_port, &read_data, sync, dc_out->even_odd);
+		assert(rc == true);
+        
+        
+        address = dc_out->address;
+        addr_space = dc_out->addr_space;
+        byte_mask = dc_out->byte_mask;        
+
+		if(dc_out->mae)
+		{
+			tv = setBit32(tv, _TRAP_, 1) ;
+			tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
+	
+	
+			// read from init-pc to clear downstream MP locks.	
+			uint32_t ign_rdata;
+			uint8_t  ign_mae = 0;
+			
+			//Mark that you have done a trap read
+			dc_out->trap_read = 1;
+		
+			// do a dummy read from initial pc.
+			readData_sitar(getThreadContext(state), 0x20, state->init_pc, 0xF, dc_out);
+
+			// should never return an mae on bypass access from init pc.
+			assert(!ign_mae);
+		}
+		else
+		{
+			if(read_data == operand2)
+			{
+				// swap register with memory.
+				writeData_sitar(getThreadContext(state), addr_space, address, byte_mask, operand3);
+				//*result = read_data; //this is already stored in dc_out->data
+				dc_out->data = read_data;
+			}
+			else
+			{
+				//
+				// write back the word just read in order
+				// to unlock the system bus.  This may
+				// be wasteful but so what?
+				//
+				writeData_sitar(getThreadContext(state), addr_space, address, byte_mask, read_data);
+
+				//
+				// destination register maintains its old value.
+				//
+				//*result  = operand3;
+				dc_out->data = operand3;
+			}
+		}
+    } else {
+		
+		//if there was an erroneous read earlier consume the data on the port
+		if (dc_out->trap_read == 1) { 
+			bool rc;
+			uint64_t ignore;
+			bool sync = true;
+			
+			rc = pulldword(dc_out->d_read_data_port, &ignore, sync);
+			assert(rc == true);
+
+		}
+		
+		if(dc_out->mae)
+		{
+			tv = setBit32(tv, _TRAP_, 1) ;
+			tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1) ;
+		}
+
+		// result to be written back.
+		f = setBit8(f, _NEED_WRITE_BACK_, 1);
+		*flags = f;
+		*result = dc_out->data;
+	}
+	
+	//return traps.
+	return (tv);
+}
+
+
 
 // 32 bit compare and swap.
 uint32_t executeCswap( Opcode op, 
@@ -2846,6 +3047,30 @@ uint32_t executeWriteStateReg( Opcode op, uint32_t operand1, uint32_t operand2, 
 	return tv;
 }
 
+//STBAR sitar version
+
+void executeStbar_split_12( uint8_t *store_barrier_pending, StateUpdateFlags* reg_update_flags, ThreadState* s, dcache_out *dc)
+{
+	
+	if (!(dc_out->push_done))
+		sendSTBAR_sitar(getThreadContext(s), dc);
+	else {
+#ifdef DEBUG
+	fprintf(stderr,"\tInfo : STBAR \n");
+#endif 
+		// No need to read anything on the read port for an STBAR
+		*store_barrier_pending = 1 ;
+
+		reg_update_flags->store_active=1;
+		reg_update_flags->store_asi=0x0;
+		reg_update_flags->store_addr=0x0;
+		reg_update_flags->store_double_word=0;
+		reg_update_flags->store_byte_mask=0x0;
+		reg_update_flags->store_word_low=0;
+		reg_update_flags->store_word_high=0;
+	}
+}
+
 void executeStbar( uint8_t *store_barrier_pending, StateUpdateFlags* reg_update_flags, ThreadState* s)
 {
 	sendSTBAR(s->core_id, s->thread_id, getThreadContext(s), s->mmu_state, s->dcache);
@@ -3303,6 +3528,7 @@ uint32_t executeInstruction_split_2(
 	uint32_t operand2 = operand2_0;
 
 	dc->push_done = 0;
+	dc->trap_read = 0;
 	ic_out->push_done = 0;
 	
 	if(dc_out->is_load)  		tv = 	executeLoad_split_12(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s, dc_out);
