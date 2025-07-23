@@ -12,7 +12,7 @@ struct dcache_out_struct {
 	uint8_t read_dword, even_odd;
 	uint8_t cache_trasactions;
     //These two things need to be stored
-    uint8_t addr_space, byte_mask;
+    uint8_t addr_space, byte_mask, trap_read;
     uint32_t address, data;
 	//uint32_t (*transaction_func_ptr)(int, int);
 	//transaction_func_ptr func;
