@@ -75,10 +75,10 @@ module CPU
 	parameter int CORE_ID = 0
 	parameter int CPU_ID = 0
     parameter int THREAD_ID = 0
-	parameter uint32_t isa_mode = 32
+	parameter int isa_mode = 32
 	parameter int bp_table_size = 16
-	parameter uint8_t report_traps = 0
-    parameter uint32_t init_pc = 0
+	parameter int report_traps = 0
+    parameter int init_pc = 0
 
     //defne ports for D Cache
 	outport d_context: width 8    
@@ -104,24 +104,26 @@ module CPU
     #include "cpu.h"
     }
     $
-	include include $#include "ajit_ng.h"$
+	include $#include "ajit_ng.h"$
     include $extern void init_cpu();$
     include $extern void cpu();$
     include $extern thread_local state current_state;$
-    decl $uint8_t mae, done_pull, d_done_pull, i_done_pull;$;
-    decl $uint64_t dcache_read_data;$;
+    decl $uint8_t mae, done_pull, d_done_pull, i_done_pull, skip_fetch, wait_4_cache;$
+    decl $uint64_t dcache_read_data;$
     decl $token<sizeof(uint8_t)> mae_token, d_mae_token, i_mae_token;$
 
     
 behavior
-	$init_cpu();$;
+	$
 
-    $
+
     ThreadState* thread_state;
 	dcache_out dc_out ;
 	icache_out ic_out;
 	dcache_in dc_in;
 	icache_in ic_in;
+	
+	init_cpu();
 	
 	dcache_out dc_out = { (void *) &d_context, (void *) &d_asi, (void *) &d_addr, (void *) &d_request_type, (void *) &d_byte_mask, (void *) &d_write_data, (void *) &d_read_data_port, \
 											0,0,0,0, 0, 0, 0, 0, 0, 0};
@@ -129,7 +131,7 @@ behavior
     dcache_in dc_in = {(void *)d_mae_in, (void *)d_read_data};
 	icache_in ic_in = {(void *)&i_mae_in, (void *)&inst_pair, (void *)&i_mmu_fsr };
 
-    thread_state = makeThreadState(CORE_ID, THREAD_ID, isa_mode, bp_table_size, report_traps, init_pc);
+    thread_state = makeThreadState(CORE_ID, THREAD_ID, isa_mode, bp_table_size, report_traps, (uint32_t)init_pc);
     $;
 
 	do
@@ -137,16 +139,16 @@ behavior
         $
 		thread_state->addr_space = (getBit32(thread_state->status_reg.psr, 7) == 0) ? 8 : 9; // Supervisor bit
 
-		uint8_t skip_fetch = !(thread_state->mode == _EXECUTE_MODE_);
+		skip_fetch = !(thread_state->mode == _EXECUTE_MODE_);
 		// Only MAE trap from fetchInstruction
 		uint8_t post_fetch_trap=0;
 		int is_buffer_hit;
 		
 		thread_state->mmu_fsr = 0;
-        $;
+		$;
         
-		if(!skip_fetch)
-		{
+		if (skip_fetch == 0) then // use the sitar if
+		
 			$
 			//clear register-update flags 
 			//(which maintain information for logging)
@@ -155,10 +157,10 @@ behavior
 			thread_state->reg_update_flags.pc = thread_state->status_reg.pc;
 			
 			is_buffer_hit = fetchInstruction_split_1(thread_state, thread_state->addr_space, thread_state->status_reg.pc, &(thread_state->instruction),
-								(void *) &i_context, (void *) &i_asi, (void *) &i_addr, (void *) &i_request_type, (void *) &i_byte_mask ); //memory_read
-            $
+								(void *) &i_context, (void *) &i_asi, (void *) &i_addr, (void *) &i_request_type, (void *) &i_byte_mask ); //memory_read            
 			done_pull = 0;
-			    
+			$;
+			
 			do
 				wait until (this_phase==0);
 				$done_pull=i_mae_in.pull(mae_token);$;
@@ -166,7 +168,7 @@ behavior
 			while(not done_pull) end do;   
 			wait until (this_phase==1);
 
-	    $
+			$
 			memcpy(&mae, mae_token.data(), sizeof(uint8_t));
 			post_fetch_trap = fetchInstruction_split_2(thread_state, thread_state->addr_space, thread_state->status_reg.pc, &(thread_state->instruction),
 									&(thread_state->mmu_fsr), is_buffer_hit, mae, (void *)&inst_pair, (void *)&i_mmu_fsr ); //memory_read
@@ -174,7 +176,7 @@ behavior
 			//================================
 			//increment count of instructions fetched
 			(thread_state->num_ifetches)++;
-            $;
+            
             
 			if((thread_state->reporting_interval > 0) && ((thread_state->num_ifetches)%(thread_state->reporting_interval)==0) )
 			{
@@ -199,26 +201,32 @@ behavior
 			// update mmu fsr, far
 			// This is done separately to match the behaviour of
 			// the instruction pipeline.
-			if(thread_state->mmu_fsr != 0) {
+			$;
+			
+			if(thread_state->mmu_fsr != 0) then // Lets make this a sitaar if
+			
+				$
 				updateMmuFsrFar_push(getThreadContext(thread_state),
 					thread_state->mmu_fsr, thread_state->status_reg.pc,
 					(void *) &context, (void *) &d_asi, (void *) &d_addr, 
-					(void *) &d_request_type, (void *) &d_byte_mask, (void *) &d_write_data );
-                $
+					(void *) &d_request_type, (void *) &d_byte_mask, (void *) &d_write_data );                
 				done_pull = 0;
+				$;
 			    
 				do
 					wait until (this_phase==0);
 					$done_pull= d_mae_in.pull(mae_token);$;
 					if(not done_pull) then wait end if;
-				while(not done_pull) end do;   
+				while(not done_pull) end do;				
 				wait until (this_phase==1);
-						
+				
+				$		
 				memcpy(&dcache_read_data, d_read_data.data(), sizeof(uint64_t));
                 $;
-			}
-		}
+			end if;
+		end if;
 
+		$
 		uint8_t annul_trap = getBit32(thread_state->trap_vector, _ANNUL_);
 		uint8_t update_post_fetch_trap = !skip_fetch && post_fetch_trap && !annul_trap;
 
@@ -307,8 +315,11 @@ behavior
 		uint8_t save_flag = 0;
 		uint8_t restore_flag = 0;
 
-		if(!skip_execute)
-		{
+		$;
+		
+		if (skip_execute == 0) then // This is a sitaar if
+		
+			$
 			//Execute instruction 
             //Lot of redundant variables are there, lets keep it like this
 			dc_out.cache_transactions = 0;
@@ -321,39 +332,57 @@ behavior
 							&flags, rs1, rd, asi, i,
 							data1, data0, vector_data_type, 
 							&dc_out, &ic_out);
-                            
+                           
 			done_pull = d_done_pull = i_done_pull = 0;
-									
-			while ((dc_out->push_done) || (ic_out->push_done)) {
-
-				do
-					wait until (this_phase==0);
-					if (dc_out->push_done) d_done_pull= d_mae_in.pull(d_mae_token);
-					if (ic_out->push_done) i_done_pull= i_mae_in.pull(i_mae_token);
-					done_pull = ((dc_out->push_done) && (ic_out->push_done))?(d_done_pull && i_done_pull):\
-						(((dc_out->push_done) && d_done_pull) || ((ic_out->push_done) && i_done_pull));
-					if(not done_pull) then wait end if;
-				while(not done_pull) end do;   
-				wait until (this_phase==1);
-						    
-				if (d_done_pull) memcpy(&dc_out->mae, d_mae_token.data(), sizeof(uint8_t));
-				if (i_done_pull) memcpy(&ic_out->mae, i_mae_token.data(), sizeof(uint8_t));
-					    
-			    //Lot of redundant variables are there, lets keep it like this
-				post_execute_trap_vector |= executeInstruction_split_2(thread_state,
-					opcode, 
-					operand2_0, operand2_1, 
-					operand1_0, operand1_1, 
-					&result_h, &result_l,
-					&flags, rs1, rd, asi, i,
-					data1, data0, vector_data_type, 
-					&dc_out, &ic_out);
-			}
+			
+			wait_4_cache = ((dc_out->push_done) || (ic_out->push_done));
+			
+			$;
+			
+			if (wait_4_cache != 0) then //sitaar if
+				do												// sitaar do
+					do											// sitaar do
+						wait until (this_phase==0);
+						$
+						if (dc_out->push_done) d_done_pull= d_mae_in.pull(d_mae_token);
+						if (ic_out->push_done) i_done_pull= i_mae_in.pull(i_mae_token);
+						done_pull = ((dc_out->push_done) && (ic_out->push_done))?(d_done_pull && i_done_pull):\
+							(((dc_out->push_done) && d_done_pull) || ((ic_out->push_done) && i_done_pull));
+						$;
+						if(not done_pull) then wait end if;
+					while(not done_pull) end do;   
+					wait until (this_phase==1);
+						
+					$
+					if (d_done_pull) memcpy(&dc_out->mae, d_mae_token.data(), sizeof(uint8_t));
+					if (i_done_pull) memcpy(&ic_out->mae, i_mae_token.data(), sizeof(uint8_t));
+							
+					//Lot of redundant variables are there, lets keep it like this
+					post_execute_trap_vector |= executeInstruction_split_2(thread_state,
+						opcode, 
+						operand2_0, operand2_1, 
+						operand1_0, operand1_1, 
+						&result_h, &result_l,
+						&flags, rs1, rd, asi, i,
+						data1, data0, vector_data_type, 
+						&dc_out, &ic_out);
+					
+					wait_4_cache = ((dc_out->push_done) || (ic_out->push_done));
+					
+					$;
+								
+				while (wait_4_cache != 0) end do;
+			end if;
+			
+			$
 			//This trap vector should have been saved in thread state by now
 			thread_state->trap_vector = post_execute_trap_vector;
 			save_flag = (opcode == _SAVE_);
 			restore_flag = (opcode == _RESTORE_);
-		}
+			$;
+		end if;
+
+		$
 		uint8_t post_execute_trap = getBit32(thread_state->trap_vector, _TRAP_);
 
 
@@ -399,9 +428,8 @@ behavior
 		{
 			thread_state->status_reg.pc = thread_state->status_reg.npc ;
 			thread_state->status_reg.npc = thread_state->status_reg.npc + 4 ;
-		}	
-	
-	$;
+		}
+		$;
 			
 	while(1) end do;
 
@@ -412,10 +440,10 @@ end module
 module DCACHE
 	parameter int CORE_ID = 0
 	parameter int CPU_ID = 0
-	parameter uint32_t isa_mode = 32
+	parameter int isa_mode = 32
 	parameter int bp_table_size = 16
-	parameter uint8_t report_traps = 0
-    parameter uint32_t init_pc = 0
+	parameter int report_traps = 0
+    parameter int init_pc = 0
 
 	inport_array context[2]: width 8    
     inport_array	asi[2] : width 8
@@ -429,6 +457,8 @@ module DCACHE
 	
 behavior
 
+	wait(0,1);
+	
 end behavior
 
 end module
@@ -436,10 +466,10 @@ end module
 module ICACHE
 	parameter int CORE_ID = 0
 	parameter int CPU_ID = 0
-	parameter uint32_t isa_mode = 32
+	parameter int isa_mode = 32
 	parameter int bp_table_size = 16
-	parameter uint8_t report_traps = 0
-    parameter uint32_t init_pc = 0
+	parameter int report_traps = 0
+    parameter int init_pc = 0
     
 	inport_array context[2]: width 8
     inport_array	asi[2] : width 8
@@ -454,6 +484,8 @@ module ICACHE
 	
 behavior
 
+	wait(0,1);
+	
 end behavior
 
 end module
