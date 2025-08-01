@@ -862,9 +862,8 @@ extern bool pushdword(void *obj,uint32_t value, bool sync);
 
 
 int fetchInstruction_split_1(ThreadState* s,  
-				uint8_t addr_space, uint32_t addr , uint64_t *ipair,
-				(void *) context_port, (void *) asi_port, (void *) addr_port, (void *) request_type_port, 
-				(void *) byte_mask_port)
+				uint8_t addr_space, uint32_t addr , 
+				icache_out ic_out)
 {
 	uint8_t context;
 	uint8_t acc;
@@ -875,7 +874,7 @@ int fetchInstruction_split_1(ThreadState* s,
 	
 	if(s->i_buffer != NULL)
 	{
-		is_buffer_hit = lookupInstructionDataBuffer (s->i_buffer, addr & 0xfffffff8, &acc, &ipair);
+		is_buffer_hit = lookupInstructionDataBuffer (s->i_buffer, addr & 0xfffffff8, &acc, &ic_out->ipair);
 		is_buffer_hit = is_buffer_hit && privilegesOk(addr_space & 0x7f, 1, 1, acc);
 	}
 	
@@ -884,16 +883,17 @@ int fetchInstruction_split_1(ThreadState* s,
         //Starting Sending stuff to I cacheable
         // This should be a function by itself
         context = getThreadContext(s);
-        rc = pushchar(context_port, context, sync);
+        rc = pushchar(ic_out->i_context_port, context, sync);
         assert(rc == true);	
-        rc = pushchar(asi_port, addr_space, sync); 
+        rc = pushchar(ic_out->i_asi_port, addr_space, sync); 
         assert(rc == true);		
-        rc = pushword(addr_port, addr & 0xfffffff8, sync); 
+        rc = pushword(ic_out->i_addr_port, addr & 0xfffffff8, sync); 
         assert(rc == true);		
-        rc = pushchar(request_type_port, REQUEST_TYPE_IFETCH, sync); 
+        rc = pushchar(ic_out->i_request_type_port, REQUEST_TYPE_IFETCH, sync); 
         assert(rc == true);		    
-        rc = pushchar(byte_mask_port, 0xff, sync); 
-        assert(rc == true);		    
+        rc = pushchar(ic_out->i_byte_mask_port, 0xff, sync); 
+        assert(rc == true);
+		ic_out->push_done = 1;
 
     }
     
@@ -903,7 +903,10 @@ int fetchInstruction_split_1(ThreadState* s,
 
 uint8_t fetchInstruction_split_2(ThreadState* s,  
 			 uint32_t addr, uint32_t *inst, uint32_t* mmu_fsr, int is_buffer_hit,
-             uint8_t mae_value, (void *)inst_pair_port, (void *)mmu_fsr_port)
+             uint8_t mae_value, 
+			 icache_out ic_out,
+			 icache_in ic_in)
+
 {
 
     bool sync = true;
@@ -911,25 +914,27 @@ uint8_t fetchInstruction_split_2(ThreadState* s,
     uint64_t ipair;
 	uint8_t acc;
 	
-	if(!is_buffer_hit)
+	ipair = ic_out->ipair;
+	
+	if(!ic_out->push_done)
 	{
         
         //readInstructionPair
         //mae_value has already been read
         
-        rc = pulldword(inst_pair_port, &ipair, sync);
+        rc = pulldword(ic_in->inst_pair_port, &ipair, sync);
         assert(rc == true);        
-        rc = pullword(mmu_fsr_port, mmu_fsr, sync);
+        rc = pullword(ic_in->mmu_fsr_port, mmu_fsr, sync);
         assert(rc == true);        
         
 		if(s->i_buffer != NULL)
 		{
-			if((mae_value  & 0x3) == 0)
+			if((ic_out->mae  & 0x3) == 0)
 			{
-				uint8_t cacheable = (mae_value >> 7) & 0x1;
+				uint8_t cacheable = (ic_out->mae >> 7) & 0x1;
 				if(cacheable)
 				{
-					uint8_t acc = (mae_value >> 4) & 0x7;
+					uint8_t acc = (ic_out->mae >> 4) & 0x7;
 					insertIntoInstructionDataBuffer(s->i_buffer,
 							addr & 0xfffffff8,
 							acc,
@@ -948,11 +953,11 @@ uint8_t fetchInstruction_split_2(ThreadState* s,
 
 	if(global_verbose_flag)
 	{
-	   fprintf(stderr,"Info:fetchInstruction addr=0x%x instr=0x%x  buf-hit=%d\n", addr, *inst, is_buffer_hit);
+	   fprintf(stderr,"Info:fetchInstruction addr=0x%x instr=0x%x  buf-hit=%d\n", addr, *inst, ic_out->push_done);
 	}
 
 	// only bottom bit of mae value is used
-	return (0x1 & mae_value);					
+	return (0x1 & ic_out->mae);					
 					
 }					
 
