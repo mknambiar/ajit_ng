@@ -82,11 +82,11 @@ namespace sitar {
             bool rc;
             
             if (sync == false)
-                rc = static_cast<inport<sizeof(uint32_t)>*>(obj)->pull(tval);
+                rc = static_cast<inport<sizeof(uint64_t)>*>(obj)->pull(tval);
             else
-                while (!(rc = static_cast<inport<sizeof(uint32_t)>*>(obj)->pull(tval)));
+                while (!(rc = static_cast<inport<sizeof(uint64_t)>*>(obj)->pull(tval)));
             
-            memcpy(data64, tval.data(), sizeof(uint32_t));
+            memcpy(&data64, tval.data(), sizeof(uint64_t));
 			
 			if(even_odd) 
 				*value = data64;
