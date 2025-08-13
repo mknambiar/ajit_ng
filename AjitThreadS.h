@@ -223,10 +223,6 @@ typedef struct _ThreadState
 
 	uint8_t report_traps;
 } ThreadState;
-
-ThreadState* makeThreadState(uint32_t core_id,
-					uint32_t thread_id, int isa_mode, int bp_table_size,
-					int report_traps, uint32_t init_pc);
 					
 void writeBackResult(RegisterFile* rf, uint8_t dest_reg, uint32_t result_h, uint32_t result_l, uint8_t flags, uint8_t cwp, uint32_t pc, StateUpdateFlags* reg_update_flags);
 
@@ -254,16 +250,15 @@ void register_debug_pipes(ThreadState* s);
 // More Utility functions
 int fetchInstruction_split_1(ThreadState* s,  
 				uint8_t addr_space, uint32_t addr , 
-				icache_out *dc_out);
+				icache_out *ic_out);
 uint8_t fetchInstruction_split_2(ThreadState* s,  
 			 uint32_t addr, uint32_t *inst, uint32_t* mmu_fsr, 
 			 icache_out *ic_out,
 			 icache_in *ic_in);
-void updateMmuFsrFar_push(
-			uint8_t context,
-			uint32_t mmu_fsr, uint32_t mmu_far,
-				void * context_port, void * asi_port, void * addr_port, void * request_type_port, 
-				void * byte_mask_port, void * write_data_port);
+
+// write MMU FSR, FAR through DCACHE.
+void updateMmuFsrFar_push(uint32_t mmu_fsr, uint32_t mmu_far, dcache_out *dc_out);
+
 uint32_t completeFPExecution (ThreadState* s,
 					Opcode opcode, 
 					uint32_t operand2_3, 

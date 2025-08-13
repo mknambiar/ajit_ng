@@ -9,7 +9,6 @@ module Top
     submodule dcache : DCACHE<0>
     submodule icache : ICACHE<0>
 
-    net_array d_context[2]: capacity 1 width 8 
     net_array d_asi[2] : capacity 1 width 8
     net_array d_addr[2] : capacity 1 width 32
     net_array d_request_type[2] : capacity 1 width 8
@@ -18,7 +17,6 @@ module Top
     net_array d_mae[2] : capacity 1 width 8
     net_array d_read_data[2] : capacity 1 width 64    
     
-  	net_array i_context[2]: capacity 1 width 8    
     net_array	i_asi[2]: capacity 1 width 8
     net_array i_addr[2]: capacity 1 width 32
     net_array i_request_type[2]: capacity 1 width 8
@@ -30,7 +28,7 @@ module Top
     for i in 0 to 1
         
         // CPU and D Cache
-        cpu[i].d_context => d_context[i]
+
         cpu[i].d_asi => d_asi[i]
         cpu[i].d_addr => d_addr[i]
         cpu[i].d_request_type => d_request_type[i]
@@ -39,7 +37,7 @@ module Top
         cpu[i].d_mae_in <= d_mae[i]
         cpu[i].d_read_data <= d_read_data[i]
         
-        dcache.context[i] <= d_context[i]
+
         dcache.asi[i] <= d_asi[i]
         dcache.addr[i] <= d_addr[i]
         dcache.request_type[i] <= d_request_type[i]
@@ -49,7 +47,7 @@ module Top
         dcache.read_data[i] => d_read_data[i]
         
         // CPU and I Cache
-        cpu[i].i_context => i_context[i]
+
         cpu[i].i_asi => i_asi[i]
         cpu[i].i_addr => i_addr[i]
         cpu[i].i_request_type => i_request_type[i]
@@ -58,7 +56,6 @@ module Top
         cpu[i].inst_pair <= inst_pair[i]
         cpu[i].i_mmu_fsr <= i_mmu_fsr[i]
         
-        icache.context[i] <= i_context[i]
         icache.asi[i] <= i_asi[i]
         icache.addr[i] <= i_addr[i]
         icache.request_type[i] <= i_request_type[i]
@@ -81,7 +78,6 @@ module CPU
     parameter int init_pc = 0
 
     //defne ports for D Cache
-	outport d_context: width 8    
     outport	d_asi : width 8
     outport d_addr : width 32
     outport d_request_type : width 8
@@ -91,7 +87,6 @@ module CPU
     inport d_read_data : width 64    
 
     //define ports for I cache
-	outport i_context: width 8    
     outport	i_asi : width 8
     outport i_addr : width 32
     outport i_request_type : width 8
@@ -100,23 +95,25 @@ module CPU
     inport inst_pair : width 64
 	inport i_mmu_fsr : width 32
     
-    //include $extern "C" {
-    //#include "AjitThreadS.h"
-    //}
-	//$
-	include $#include "string.h"$
-	include $#include "ajit_ng.h"$	
-	include $#include "Ancillary.h"$
-	include $#include "RegisterFile.h"$
-	include $#include "Decode.h"$
-	include $#include "Flags.h"$
-	include $#include "Opcodes.h"$
-	include $#include "ThreadLogging.h"$
-	include $#include "Traps.h"$
-	include $#include "AjitThreadS.h"$
-	include $#include "ExecuteS.h"$
-    include $extern void init_cpu();$
-    include $extern void cpu();$
+    include $extern "C" {
+		#include "string.h"
+		#include "ajit_ng.h"	
+		#include "Ancillary.h"
+		#include "RegisterFile.h"
+		#include "Decode.h"
+		#include "Flags.h"
+		#include "Opcodes.h"
+		#include "ThreadLogging.h"
+		#include "Traps.h"
+		#include "AjitThreadS.h"
+		#include "ThreadInterfaceS.h"
+		#include "ExecuteS.h"
+    }
+	$
+
+
+    //include $extern void init_cpu();$
+    //include $extern void cpu();$
     //include $extern thread_local state current_state;$
     decl $uint8_t mae, done_pull, d_done_pull, i_done_pull, skip_fetch, wait_4_cache;$
     decl $uint64_t dcache_read_data;$
@@ -142,6 +139,7 @@ module CPU
 	decl $uint32_t post_execute_trap_vector;$
 	decl $uint8_t save_flag;$
 	decl $uint8_t restore_flag;$
+
 behavior
 	$
 
@@ -152,12 +150,9 @@ behavior
 			operand1_3 = operand2_0 = operand2_1 = operand2_2 = operand2_3 = 0;
 			
 	
-	
-	init_cpu();
-	
-	dc_out = { (void *) &d_context, (void *) &d_asi, (void *) &d_addr, (void *) &d_request_type, (void *) &d_byte_mask, (void *) &d_write_data, (void *) &d_read_data, \
+	dc_out = { (void *) &d_asi, (void *) &d_addr, (void *) &d_request_type, (void *) &d_byte_mask, (void *) &d_write_data, (void *) &d_read_data, \
 											0,0,0,0, 0, 0, 0, 0, 0, 0, 0,0,0,0, 0, 0, 0, 0};
-	ic_out = {(void *) &i_context, (void *) &i_asi, (void *) &i_addr, (void *) &i_request_type, (void *) &i_byte_mask, 0, 0, 0, 0, 0};
+	ic_out = {(void *) &i_asi, (void *) &i_addr, (void *) &i_request_type, (void *) &i_byte_mask, 0, 0, 0, 0, 0};
     dc_in = {(void *)&d_mae_in, (void *)&d_read_data};
 	ic_in = {(void *)&i_mae_in, (void *)&inst_pair, (void *)&i_mmu_fsr };
 
@@ -240,10 +235,8 @@ behavior
 			if(thread_state->mmu_fsr != 0) then // Lets make this a sitaar if
 			
 				$
-				updateMmuFsrFar_push(getThreadContext(thread_state),
-					thread_state->mmu_fsr, thread_state->status_reg.pc,
-					(void *) &d_context, (void *) &d_asi, (void *) &d_addr, 
-					(void *) &d_request_type, (void *) &d_byte_mask, (void *) &d_write_data );                
+				updateMmuFsrFar_push(thread_state->mmu_fsr, thread_state->status_reg.pc, &dc_out);
+
 				done_pull = 0;
 				$;
 			    
@@ -452,10 +445,11 @@ behavior
 			//Compute a signature containing information about
 			//processor state updated by this instruction
 			//and send it out to the logger.
-			if(is_logging_enabled())
-			{
-				generateLogMessage(thread_state);
-			}
+			//Lets leave this commented for now
+			//if(is_logging_enabled())
+			//{
+			//	generateLogMessage(thread_state);
+			//}
 		}
 
 		uint8_t update_pc = (!skip_execute || !skip_fp_execute) && !post_execute_trap && !isBranchInstruction(opcode, inst_type);
@@ -480,7 +474,6 @@ module DCACHE
 	parameter int report_traps = 0
     parameter int init_pc = 0
 
-	inport_array context[2]: width 8    
     inport_array	asi[2] : width 8
     inport_array addr[2] : width 32
     inport_array request_type[2] : width 8
@@ -506,7 +499,6 @@ module ICACHE
 	parameter int report_traps = 0
     parameter int init_pc = 0
     
-	inport_array context[2]: width 8
     inport_array	asi[2] : width 8
     inport_array addr[2] : width 32
     inport_array request_type[2] : width 8

@@ -45,8 +45,8 @@ void executeTrap(ThreadState* thread_state,
 uint32_t executeLoad_split_12(Opcode op, uint32_t operand1, uint32_t operand2, 
 				uint32_t *result_h, uint32_t *result_l,
 				StatusRegisters *status_reg, uint32_t trap_vector, 
-				uint8_t asi, uint8_t rd, uint8_t *flags, ThreadState *state, dcache_out dc_out);
-uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2, uint32_t *result_h, uint32_t *result_l, uint32_t data0,	uint32_t data1, StatusRegisters *status_reg, uint32_t trap_vector, uint8_t asi, uint8_t rd, ThreadState *state, dcache_out *dc_out);
+				uint8_t asi, uint8_t rd, uint8_t *flags, ThreadState *state, dcache_out *dc_out);
+uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2, uint32_t *result_h, uint32_t *result_l, uint32_t data0,	uint32_t data1, StatusRegisters *status_reg, uint32_t trap_vector, uint8_t asi, uint8_t rd, ThreadState *state, dcache_out *dc_out, icache_out *ic_out);
 uint32_t executeLdstub_split_12(Opcode op, 
 				uint32_t operand1, uint32_t operand2, uint32_t *result, 
 				StatusRegisters *status_reg, StateUpdateFlags* reg_update_flags,
@@ -131,7 +131,7 @@ uint32_t executeReadStateReg( Opcode op, uint8_t rs1, uint32_t *result,
 					uint32_t trap_vector, uint8_t *flags);
 uint32_t executeWriteStateReg( Opcode op, uint32_t operand1, uint32_t operand2, uint8_t rd, StatusRegisters *status_reg, 
 					StateUpdateFlags* reg_update_flags, uint32_t trap_vector);
-void executeStbar_split_12( uint8_t *store_barrier_pending, StateUpdateFlags* reg_update_flags, ThreadState* s, dcache_out *dc);
+uint32_t executeStbar_split_12( uint8_t *store_barrier_pending, StateUpdateFlags* reg_update_flags, ThreadState* s, uint32_t trap_vector, dcache_out *dc);
 uint32_t executeUnImplemented( uint32_t trap_vector);
 
 uint32_t executeFlush_split_12(uint32_t flush_addr, uint32_t trap_vector, StateUpdateFlags* reg_update_flags,

@@ -3,7 +3,7 @@ struct dcache_out_struct;
 //typedef uint32_t (*transaction_func_ptr)(struct dcache_out_struct*);
 
 struct dcache_out_struct {
-	void *d_context_port, *d_asi_port, *d_addr_port;
+	void *d_asi_port, *d_addr_port;
 	void *d_request_type_port, *d_byte_mask_port;
 	void *d_write_data_port;
 	void *d_read_data_port;
@@ -21,7 +21,7 @@ struct dcache_out_struct {
 typedef struct dcache_out_struct dcache_out;
 
 struct icache_out_struct {
-	void *i_context_port, *i_asi_port, *i_addr_port;
+	void *i_asi_port, *i_addr_port;
 	void *i_request_type_port, *i_byte_mask_port;
 	uint64_t inst_pair;
     uint8_t push_done, mae;
