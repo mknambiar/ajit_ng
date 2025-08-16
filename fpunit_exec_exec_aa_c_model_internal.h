@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <BitVectors.h>
-//#include <pipeHandler.h>
+#include <pipeHandler.h>
 // object initialization 
 
 #define fpunit_exec_exec__DoubleToExtendedFp_inner_inarg_prep_macro__ __declare_static_bit_vector(uf1_d,64);\
