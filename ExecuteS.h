@@ -46,7 +46,7 @@ uint32_t executeLoad_split_12(Opcode op, uint32_t operand1, uint32_t operand2,
 				uint32_t *result_h, uint32_t *result_l,
 				StatusRegisters *status_reg, uint32_t trap_vector, 
 				uint8_t asi, uint8_t rd, uint8_t *flags, ThreadState *state, dcache_out *dc_out);
-uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2, uint32_t *result_h, uint32_t *result_l, uint32_t data0,	uint32_t data1, StatusRegisters *status_reg, uint32_t trap_vector, uint8_t asi, uint8_t rd, ThreadState *state, dcache_out *dc_out, icache_out *ic_out);
+uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2, uint32_t data0,	uint32_t data1, StatusRegisters *status_reg, uint32_t trap_vector, uint8_t asi, uint8_t rd, ThreadState *state, dcache_out *dc_out, icache_out *ic_out);
 uint32_t executeLdstub_split_12(Opcode op, 
 				uint32_t operand1, uint32_t operand2, uint32_t *result, 
 				StatusRegisters *status_reg, StateUpdateFlags* reg_update_flags,
@@ -68,7 +68,6 @@ uint32_t executeCswap_split_12( Opcode op,
 				uint32_t trap_vector, uint8_t asi, uint8_t imm_flag,
 				ThreadState* state,
 				StatusRegisters *status_reg, 
-				StateUpdateFlags*  reg_update_flags,
 				uint8_t *flags, dcache_out *dc_out);
 				
 void executeNop();
