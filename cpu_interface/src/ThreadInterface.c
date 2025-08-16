@@ -8,6 +8,7 @@
 
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <stdbool.h>
 #include "Ancillary.h"
@@ -44,9 +45,6 @@ extern bool pullword_fromdword(void *obj, uint32_t *value, bool sync, uint8_t ev
 //Request ICACHE to flush line containing a given doubleword in sitar
 void flushIcacheLine_sitar(uint8_t asi, uint32_t addr, icache_out *ic)
 {
-
-	uint64_t instr64;
-	uint32_t mmu_fsr;
 
 	// set the top bit of the asi to 1 to indicate "thread head"
     ic->push_done = 0;
@@ -105,7 +103,6 @@ void readData64Base_sitar(uint8_t debug_flag, uint8_t asi, uint8_t byte_mask,
 void readDataBase_sitar(uint8_t debug_flag, uint8_t asi, uint8_t byte_mask, uint32_t addr, dcache_out *dc_out)
 {
 
-	uint64_t data64;
 	uint8_t byte_mask_64 = (addr & 0x4) ? byte_mask : (byte_mask << 4);
 	
 	dc_out->even_odd = getBit32(addr,2);
@@ -113,10 +110,6 @@ void readDataBase_sitar(uint8_t debug_flag, uint8_t asi, uint8_t byte_mask, uint
 
 	readData64Base_sitar( debug_flag, asi, byte_mask_64, addr, dc_out);
 
-	//if(getBit32(addr,2)) 
-	//	*data = data64;
-	//else
-	//	*data = (data64)>>32;
 }
 
 //sitar version of readData
@@ -143,18 +136,12 @@ void readData64_sitar( uint8_t asi, uint8_t byte_mask, uint32_t addr, dcache_out
 // sitar version of lockAndReadData
 void lockAndReadData_sitar(uint8_t asi, uint8_t byte_mask, uint32_t addr, dcache_out *dc_out)
 {
-	uint64_t data64;
-
 	uint8_t byte_mask_64 = (addr & 0x4) ? byte_mask : (byte_mask << 4);
 	dc_out->even_odd = getBit32(addr,2);
 	dc_out->read_dword = 0;
 
 	lockAndReadData64_sitar( asi, byte_mask_64, addr, dc_out);
 
-/* 	if(getBit32(addr,2)) 
-		*data = data64;
-	else
-		*data = (data64)>>32; */
 }
 
 //sitar version
@@ -183,7 +170,6 @@ void updateMmuFsrFar_push(
 			dcache_out *dc)
 {
 	uint64_t data64 = 0;
-	uint8_t mae;
     uint32_t addr = 0x0;
     uint8_t asi = 0x0;
 	bool rc;
@@ -238,14 +224,14 @@ void cpuIcacheAccess_push(uint8_t asi, uint32_t addr, uint8_t request_type,
 		bool sync = true;
 	
 ///    
-        
+        assert(byte_mask == 0xff);
         rc = pushchar(ic->i_asi_port, asi, sync); 
         assert(rc == true);		
         rc = pushword(ic->i_addr_port, addr & 0xfffffff8, sync); 
         assert(rc == true);		
         rc = pushchar(ic->i_request_type_port, request_type, sync); 
         assert(rc == true);		    
-        rc = pushchar(ic->i_byte_mask_port, 0xff, sync); 
+        rc = pushchar(ic->i_byte_mask_port, byte_mask, sync); 
         assert(rc == true);		    
         ic->push_done = 1;
 	
@@ -308,10 +294,6 @@ void writeData_sitar(uint8_t asi, uint32_t addr, uint8_t byte_mask, uint32_t dat
 void sendSTBAR_sitar(dcache_out *dc_out)
 {
 
-	// ignored..
-	uint8_t mae = 0;
-	uint64_t read_data = 0;
-
 	//send request
 	cpuDcacheAccess_push( 0, 0, REQUEST_TYPE_STBAR | IS_NEW_THREAD,	0,  0, dc_out);
 	
@@ -353,7 +335,7 @@ ThreadState* makeThreadState(uint32_t core_id,
 				int bp_table_size, int report_traps, uint32_t init_pc)
 {
 	ThreadState* s = (ThreadState*) malloc (sizeof(ThreadState));
-	sitar_init_ajit_thread (s, core_id, thread_id, isa_mode, bp_table_size, report_traps, init_pc);
+	sitar_init_ajit_thread(s, core_id, thread_id, isa_mode, bp_table_size, report_traps, init_pc);
 	return(s);
 }
 
