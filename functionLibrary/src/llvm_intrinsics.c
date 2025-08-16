@@ -43,7 +43,7 @@ void llvm_memmove_u64(uint64_t* dest, uint64_t* src, uint32_t len)
 	memmove((void*)dest, (void*)src, len*8);
 }
 
-#define _MemSetMacro__ {int idx; for(idx = 0; idx < len; idx++) dest[idx] = val;}
+#define _MemSetMacro__ {uint32_t idx; for(idx = 0; idx < len; idx++) dest[idx] = val;}
 void llvm_memset_u64(uint64_t* dest, uint64_t val, uint32_t len)
 {
 	_MemSetMacro__
