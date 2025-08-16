@@ -64,7 +64,7 @@ uint64_t unpack_bit_vector_into_uint64(uint8_t signed_flag, bit_vector* bv)
         uint32_t asize = __array_size(bv);
 	if(asize > 0)
 	{
-		int i;
+		uint32_t i;
 		for (i=0; i < 8; i++)
 		{
 			if(i >= asize)
@@ -89,7 +89,7 @@ void  pack_uint64_into_bit_vector(uint8_t signed_flag, uint64_t word, bit_vector
 	}
 	if (neg_flag) 
 		def_byte = 0xff; 
-	int i;
+	uint32_t i;
 	uint8_t* word_ptr = (uint8_t*) &word;
 	for (i=0; i < 8; i++)  // uint64_t
 	{
@@ -129,7 +129,7 @@ void allocate_sized_u8_array(sized_u8_array* a, uint32_t sz)
 
 	allocated_byte_count += 2*sz;
 
-	int I;
+	uint32_t I;
 	for(I = 0; I < sz; I++)
 	{
 		a->byte_array[I] = rand(); // initialize with random string.
@@ -184,7 +184,7 @@ void free_bit_vector(bit_vector* t)
 
 void print_bit_vector(bit_vector* t, FILE* ofile)
 {
-	int I;
+	uint32_t I;
 	for(I=t->width-1; I>=0; I--)
 	{
 		if(bit_vector_get_undefined_bit(t,I))
@@ -203,7 +203,7 @@ char to_string_buffer[4096];
 char* to_string(bit_vector* t)
 {
 	int QUAD = 4;
-	int I;
+	uint32_t I;
 
 	sprintf(to_string_buffer," ");
 
@@ -305,7 +305,7 @@ uint8_t is_undefined_bit(bit_vector* t, uint32_t index)
 
 uint8_t has_undefined_bit(bit_vector* t)
 {
-	int I;
+	uint32_t I;
 	for(I=t->width-1; I>=0; I--)
 	{
 		if(bit_vector_get_undefined_bit(t,I))
@@ -375,7 +375,7 @@ uint8_t bit_vector_is_zero(bit_vector* t)
 	uint8_t ret_val = 1;
 	uint32_t asize = __array_size(t);
 	uint8_t  cW = 0;
-	int i;
+	uint32_t i;
 	for(i = 0; i < asize; i++)
 	{
 		cW += 8;
@@ -492,8 +492,7 @@ void bit_vector_cast_to_bit_vector(uint8_t signed_flag, bit_vector* dest, bit_ve
 {
 	uint32_t min_width = __min(src->width,dest->width);
 	uint32_t J;
-	uint8_t neg_flag = 0;
-        uint8_t undef_flag = 0;
+    uint8_t undef_flag = 0;
 
 	bit_vector_clear(dest);
 
@@ -513,7 +512,7 @@ void bit_vector_cast_to_bit_vector(uint8_t signed_flag, bit_vector* dest, bit_ve
 	if(signed_flag && __sign_bit(src))
 	  {
 	    // sign-extend in dest.
-	    int I;
+	    uint32_t I;
 	    for(I = src->width; I <= dest->width; I++)
 	      {
 		bit_vector_set_bit(dest, I, 1);
@@ -660,7 +659,7 @@ void bit_vector_set_undefined(bit_vector* s)
 void bit_vector_or(bit_vector* r, bit_vector* s, bit_vector* t)
 {
 	assert(r->width == s->width); assert(s->width == t->width);
-	int i;
+	uint32_t i;
 	uint32_t asize = __array_size(r);
 	for(i = 0; i < asize; i++)
 	{
@@ -677,7 +676,7 @@ void bit_vector_or(bit_vector* r, bit_vector* s, bit_vector* t)
 void bit_vector_nor(bit_vector* r, bit_vector* s, bit_vector* t)
 {
 	assert(r->width == s->width); assert(s->width == t->width);
-	int i;
+	uint32_t i;
 	uint32_t asize = __array_size(r);
 	for(i = 0; i < asize; i++)
 	{
@@ -693,7 +692,7 @@ void bit_vector_nor(bit_vector* r, bit_vector* s, bit_vector* t)
 void bit_vector_and(bit_vector* r, bit_vector* s, bit_vector* t)
 {
 	assert(r->width == s->width); assert(s->width == t->width);
-	int i;
+	uint32_t i;
 	uint32_t asize = __array_size(r);
 	for(i = 0; i < asize; i++)
 	{
@@ -709,7 +708,7 @@ void bit_vector_and(bit_vector* r, bit_vector* s, bit_vector* t)
 void bit_vector_nand(bit_vector* r, bit_vector* s, bit_vector* t)
 {
 	assert(r->width == s->width); assert(s->width == t->width);
-	int i;
+	uint32_t i;
 	uint32_t asize = __array_size(r);
 	for(i = 0; i < asize; i++)
 	{
@@ -725,7 +724,7 @@ void bit_vector_nand(bit_vector* r, bit_vector* s, bit_vector* t)
 void bit_vector_xor(bit_vector* r, bit_vector* s, bit_vector* t)
 {
 	assert(r->width == s->width); assert(s->width == t->width);
-	int i;
+	uint32_t i;
 	uint32_t asize = __array_size(r);
 	for(i = 0; i < asize; i++)
 	{
@@ -737,7 +736,7 @@ void bit_vector_xor(bit_vector* r, bit_vector* s, bit_vector* t)
 void bit_vector_xnor(bit_vector* r, bit_vector* s, bit_vector* t)
 {
 	assert(r->width == s->width); assert(s->width == t->width);
-	int i;
+	uint32_t i;
 	uint32_t asize = __array_size(r);
 	for(i = 0; i < asize; i++)
 	{
@@ -766,7 +765,7 @@ void  bit_vector_reduce_or(bit_vector* src, bit_vector* dest)
 
 	uint8_t val = 0;
 	uint8_t uval = 0;
-	int I;
+	uint32_t I;
 	for(I=0; I < src->width; I++)
 	{
 		uint8_t x = bit_vector_get_bit(src,I);
@@ -788,7 +787,7 @@ void  bit_vector_reduce_and(bit_vector* src, bit_vector* dest)
 
 	uint8_t val = 1;
 	uint8_t uval = 0;
-	int I;
+	uint32_t I;
 	for(I=0; I < src->width; I++)
 	{
 		uint8_t x = bit_vector_get_bit(src,I);
@@ -810,7 +809,7 @@ void  bit_vector_reduce_xor(bit_vector* src, bit_vector* dest)
 
 	uint8_t val = 0;
 	uint8_t uval = 0;
-	int I;
+	uint32_t I;
 	for(I=0; I < src->width; I++)
 	{
 		uint8_t x = bit_vector_get_bit(src,I);
@@ -835,7 +834,7 @@ void  bit_vector_decode(bit_vector* src, bit_vector* dest)
 	else
 	{
 		bit_vector_clear_undefined(dest);
-		int I;
+		uint32_t I;
 		uint64_t src_val = bit_vector_to_uint64(0,src);
 		for(I = 0; I < dest->width; I++)
 		{
@@ -857,8 +856,8 @@ void  bit_vector_encode(bit_vector* src, bit_vector* dest)
 	else
 	{
 		bit_vector_clear_undefined(dest);
-		int I;
-		uint64_t src_val = bit_vector_to_uint64(0,src);
+		uint32_t I;
+		//uint64_t src_val = bit_vector_to_uint64(0,src);
 		for(I = 0; I < src->width; I++)
 		{
 			if(bit_vector_get_bit(src,I))
@@ -887,7 +886,7 @@ void  bit_vector_priority_encode(bit_vector* src, bit_vector* dest)
 	{
 		bit_vector_clear_undefined(dest);
 		bit_vector_clear(dest);
-		int I;
+		uint32_t I;
 		for(I = src->width-1; I >= 0; I--)
 		{
 			if(bit_vector_get_bit(src,I))
@@ -904,7 +903,7 @@ void  bit_vector_priority_encode(bit_vector* src, bit_vector* dest)
 void bit_vector_increment(bit_vector* s)
 {
 	uint16_t curr_carry = 1;
-	int i;
+	uint32_t i;
 	for(i = 0; i < __array_size(s); i++)
 	{
 		uint16_t op =  __get_byte(s,i);
@@ -925,7 +924,7 @@ void bit_vector_plus(bit_vector* r, bit_vector* s, bit_vector* t)
 	uint32_t asize = __array_size(r);
 	uint16_t curr_carry = 0;
 	
-	int i;
+	uint32_t i;
 	for(i = 0; i < asize; i++)
 	{
 		uint16_t op1 =  __get_byte(r,i);
@@ -1102,7 +1101,7 @@ void bit_vector_concatenate(bit_vector* f, bit_vector* s, bit_vector* result)
 {
 	assert(result->width == (f->width + s->width));
 	bit_vector_clear(result);
-	int I = 0;
+
 	int J;
 	for(J = 0; J < s->width; J++)
 	{
@@ -1167,7 +1166,7 @@ void bit_vector_shift_right(uint8_t signed_flag, bit_vector* r, bit_vector* s, b
 	uint32_t shift_amount = bit_vector_to_uint64(0,s);
 	if(shift_amount < t->width)
 	{
-		int I;
+		uint32_t I;
 		for(I=shift_amount; I < t->width; I++)
 		{
 			bit_vector_set_bit(t,I-shift_amount, bit_vector_get_bit(r,I));
@@ -1183,7 +1182,7 @@ void bit_vector_shift_left(bit_vector* r, bit_vector* s, bit_vector* t)
 
 	if(shift_amount < t->width)
 	{
-		int I;
+		uint32_t I;
 		for(I=0; I < (r->width - shift_amount); I++)
 		{
 			bit_vector_set_bit(t,I+shift_amount, bit_vector_get_bit(r,I));
@@ -1205,7 +1204,7 @@ void bit_vector_rotate_left(bit_vector* r, bit_vector* s, bit_vector* t)
 	// don't roll over
 	uint32_t rotate_amount = (bit_vector_to_uint64(0,s)) % word_size;
 
-	int I;
+	uint32_t I;
 	for(I=0; I < word_size; I++)
 	{
 		int J = (I >= rotate_amount) ? (I - rotate_amount) : (I + word_size)-rotate_amount;
@@ -1231,7 +1230,7 @@ void bit_vector_rotate_right(bit_vector* r, bit_vector* s, bit_vector* t)
 	// don't roll over
 	uint32_t rotate_amount = (bit_vector_to_uint64(0,s)) % word_size;
 
-	int I;
+	uint32_t I;
 	for(I=0; I < word_size; I++)
 	{
 		int J =  (I + rotate_amount) % word_size;
@@ -1291,7 +1290,6 @@ uint8_t uint64_compare(uint8_t signed_flag, uint64_t a, uint64_t b, uint64_t wid
 //   compare of 2's complement numbers is easy.
 uint8_t bit_vector_compare(uint8_t signed_flag, bit_vector* r, bit_vector* s)
 {
-	uint8_t undef_flag = 0;
 
 	// aggressive undef handling.
 	if(has_undefined_bit(r) || has_undefined_bit(s))
@@ -1302,7 +1300,7 @@ uint8_t bit_vector_compare(uint8_t signed_flag, bit_vector* r, bit_vector* s)
 	assert(r->width == s->width);
 
 	// raw comparison.
-	int i;
+	uint32_t i;
 	uint8_t re = 1;
 	uint8_t rg = 0;
 	uint8_t rl = 0;
@@ -1425,7 +1423,7 @@ uint8_t isNormalFp32(float a)
 	float tA = a;
 	uint32_t ua = 	 *((uint32_t*) &tA);
 	uint8_t is_zero = (ua == 0);
-	uint32_t sign_ua = (ua & (1 << 31));
+
 	// get rid of sign bit and extract the exponent.
 	uint8_t exp_ua  = ((ua << 1) >> 24);
 
@@ -1437,11 +1435,9 @@ uint8_t isNormalFp64(double a)
 {
 	double tA = a;
 	uint64_t u64_1 = 1;
-	uint64_t u64_0x7ff = 0x7ff;
 
 	uint64_t ua = 	 *((uint64_t*) &tA);
 	uint8_t is_zero = (ua == 0);
-	uint64_t sign_ua = (ua & (u64_1 << 63));
 
 	// get rid of sign bit and extract the exponent.
 	uint16_t exp_ua  = ((ua << 1) >> 53);
