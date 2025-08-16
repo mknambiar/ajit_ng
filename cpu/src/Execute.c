@@ -280,7 +280,7 @@ uint32_t executeLoad_split_12(Opcode op, uint32_t operand1, uint32_t operand2,
 //
 // executeStore for sitar
 //
-uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2, uint32_t *result_h, uint32_t *result_l, uint32_t data0,	uint32_t data1, StatusRegisters *status_reg, uint32_t trap_vector, uint8_t asi, uint8_t rd, ThreadState *state, dcache_out *dc_out, icache_out *ic_out)
+uint32_t executeStore_split_12( Opcode op, uint32_t operand1, uint32_t operand2, uint32_t data0,	uint32_t data1, StatusRegisters *status_reg, uint32_t trap_vector, uint8_t asi, uint8_t rd, ThreadState *state, dcache_out *dc_out, icache_out *ic_out)
 {
 #ifdef DEBUG
 	fprintf(stderr,"\tInfo : Store op-code=%x operand1=%x operand2=%x asi=%x\n", op, operand1, operand2, asi);
@@ -567,7 +567,6 @@ uint32_t executeLdstub_split_12(Opcode op,
 		//
 		if(!is_privileged)
 			testAndSetBlockLdstFlags(state, 1, 0); //This part is useless - we will keep and see if there is a problem
-		uint8_t mae1=0;
 
 		uint8_t address_10 = getSlice32(address, 1, 0);
 		if(address_10 == 0) byte_mask = 0x8 ;
@@ -608,21 +607,14 @@ uint32_t executeLdstub_split_12(Opcode op,
 
 		dc_out->is_trap1 = is_trap;
 
-		uint8_t mae2 = 0;
 		if(is_trap)
-		{
-			// read from init-pc to clear downstream MP locks.	
-			uint32_t ign_rdata;
-			uint8_t  ign_mae = 0;
-			
+		{		
 			//Mark that you have done a trap read
 			dc_out->trap_read = 1;
 			
 			// do a dummy read from initial pc. to clear the lock.
 			readData_sitar(	0x20, state->init_pc, 0xF, dc_out);
 
-			// should never return an mae on bypass access from init pc.
-			assert(!ign_mae);
 		}
 		else
 		{
@@ -764,7 +756,6 @@ uint32_t executeSwap_split_12( Opcode op,
             is_alignment_trap = 1;
         }
 
-        uint8_t mae1 = 0;
         if(!is_privileged_trap && !is_illegal_instr_trap && !is_alignment_trap) 
         {
             // wait until BlockLdstByte and BlockLdstWord are both 0
@@ -801,20 +792,14 @@ uint32_t executeSwap_split_12( Opcode op,
 
         uint8_t is_trap = getBit32(tv, _TRAP_);
         uint8_t skip_write =  is_trap;
-        uint8_t mae2 = 0;
         if(skip_write)
         {
-            uint32_t ign_rdata;
-            uint8_t  ign_mae = 0;
-
 			//Mark that you have done a trap read
 			dc_out->trap_read = 1;
 			
 			// do a dummy read from initial pc. to clear the lock.
 			readData_sitar(	0x20, state->init_pc, 0xF, dc_out);
             
-            // should never return an mae on bypass access from init pc.
-            assert(!ign_mae);
         }
         else
         {
@@ -880,7 +865,6 @@ uint32_t executeCswap_split_12( Opcode op,
 				uint32_t trap_vector, uint8_t asi, uint8_t imm_flag,
 				ThreadState* state,
 				StatusRegisters *status_reg, 
-				StateUpdateFlags*  reg_update_flags,
 				uint8_t *flags, dcache_out *dc_out)
 {
 #ifdef DEBUG
@@ -940,9 +924,6 @@ uint32_t executeCswap_split_12( Opcode op,
 			is_alignment_trap = 1;
 		}
 
-
-		uint8_t  mae 	   = 0;
-
 		// byte mask for 32-bit read  (this is expanded to 64-bit read in lockAndReadData).
 		byte_mask = 0xf;
 
@@ -974,11 +955,6 @@ uint32_t executeCswap_split_12( Opcode op,
 		{
 			tv = setBit32(tv, _TRAP_, 1) ;
 			tv = setBit32(tv, _DATA_ACCESS_EXCEPTION_, 1);
-	
-	
-			// read from init-pc to clear downstream MP locks.	
-			uint32_t ign_rdata;
-			uint8_t  ign_mae = 0;
 			
 			//Mark that you have done a trap read
 			dc_out->trap_read = 1;
@@ -986,8 +962,6 @@ uint32_t executeCswap_split_12( Opcode op,
 			// do a dummy read from initial pc.
 			readData_sitar( 0x20, state->init_pc, 0xF, dc_out);
 
-			// should never return an mae on bypass access from init pc.
-			assert(!ign_mae);
 		}
 		else
 		{
@@ -2389,7 +2363,7 @@ uint32_t executeInstruction_split_1(
     ic_out->push_done = 0;
 	
 	if(is_load)  		tv = 	executeLoad_split_12(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s, dc_out);
-	else if(is_store) 	tv = 	executeStore_split_12(opcode, operand1, operand2, result_h, result_l, data0, data1, status_reg,trap_vector, asi, rd, s, dc_out, ic_out);
+	else if(is_store) 	tv = 	executeStore_split_12(opcode, operand1, operand2, data0, data1, status_reg,trap_vector, asi, rd, s, dc_out, ic_out);
 	else if(is_atomic) 	tv = 	executeLdstub_split_12(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, flags, s, dc_out);
 	else if(is_swap) 	tv = 	executeSwap_split_12(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, imm_flag, data0, flags, s, dc_out);
 	else if(is_cswap) 	tv = 	executeCswap_split_12(opcode, 
@@ -2401,7 +2375,6 @@ uint32_t executeInstruction_split_1(
 							asi, imm_flag, 
 							s,
 							status_reg,
-							&(s->reg_update_flags),
 							flags,
 							dc_out);
 	else if(is_logical) 
@@ -2597,7 +2570,7 @@ uint32_t executeInstruction_split_2(
 	ic_out->push_done = 0;
 	
 	if(dc_out->is_load)  		tv = 	executeLoad_split_12(opcode, operand1, operand2, result_h, result_l, status_reg, trap_vector, asi, rd, flags, s, dc_out);
-	else if(dc_out->is_store) 	tv = 	executeStore_split_12(opcode, operand1, operand2, result_h, result_l, data0, data1, status_reg,trap_vector, asi, rd, s, dc_out, ic_out);
+	else if(dc_out->is_store) 	tv = 	executeStore_split_12(opcode, operand1, operand2, data0, data1, status_reg,trap_vector, asi, rd, s, dc_out, ic_out);
 	else if(dc_out->is_atomic) 	tv = 	executeLdstub_split_12(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, flags, s, dc_out);
 	else if(dc_out->is_swap) 	tv = 	executeSwap_split_12(opcode, operand1, operand2, result_l, status_reg,&(s->reg_update_flags), trap_vector, asi, imm_flag, data0, flags, s, dc_out);
 	else if(dc_out->is_cswap) 	tv = 	executeCswap_split_12(opcode, 
@@ -2609,7 +2582,6 @@ uint32_t executeInstruction_split_2(
 							asi, imm_flag, 
 							s,
 							status_reg,
-							&(s->reg_update_flags),
 							flags,
 							dc_out);
 
