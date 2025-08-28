@@ -1,14 +1,81 @@
-//A Shift register consists of a
-//producer, connected to a consumer through 
-//an array of shift register stages.
-//The number of stages and delay of 
-//each stage are parameters
-
 module Top
-	submodule_array cpu[2] : CPU<12>    	//Instantiate a memory module with <size=2 MB,delay=10>
+    //parameter int NUM_CPU = 1
+    submodule_array cpu[1]: CPU_CORE
+    submodule bridge : Bridge<1>
+    submodule memory : Memory
+
+    // CPU_CORE <-> Bridge
+    net_array m_request_type[1] : capacity 1  width 8
+    net_array m_byte_mask[1] : capacity 1  width 8
+    net_array m_addr[1] :  capacity 1 width 32
+    net_array m_data64[1] :  capacity 1 width 64
+    net_array  m_rdata[1] :  capacity 1 width 64    
+
+    // Bridge <-> Memory
+    net m_address : capacity 1 width 32
+    net double_word:  capacity 1 width 64
+    net mem_byte_mask:  capacity 1 width 8
+    
+    net m_data:  capacity 1 width 64
+	
+	// Bridge → D$ broadcasts
+    net_array  br2dc_inv_paddr_line_net[1] : capacity 1 width 32   // physical line address
+	
+	// Bridge → I$ broadcasts
+    net_array  br2ic_inv_paddr_line_net[1] : capacity 1 width 32   // physical line address
+    
+    for i in 0 to 1
+        cpu[i].request_type => m_request_type[i]
+        cpu[i].byte_mask => m_byte_mask[i]
+        cpu[i].addr => m_addr[i]
+        cpu[i].data64 => m_data64[i]
+        cpu[i].rdata <= m_rdata[i]
+        
+        bridge.request_type[i] <= m_request_type[i]
+        bridge.byte_mask[i] <= m_byte_mask[i]
+        bridge.addr[i] <= m_addr[i]
+        bridge.data64[i] <= m_data64[i]
+        bridge.rdata[i] => m_rdata[i]
+		
+		cpu[i].br2dc_inv_paddr_line <= br2dc_inv_paddr_line_net[i]
+		bridge.br2dc_inv_paddr_line[i] => br2dc_inv_paddr_line_net[i]
+		cpu[i].br2ic_inv_paddr_line <= br2ic_inv_paddr_line_net[i]
+		bridge.br2ic_inv_paddr_line[i] => br2ic_inv_paddr_line_net[i]
+    end for
+    
+    bridge.m_address => m_address
+    bridge.double_word => double_word
+    bridge.m_byte_mask => mem_byte_mask
+    bridge.m_data <= m_data
+    
+    memory.m_address <= m_address
+    memory.double_word <= double_word
+    memory.m_byte_mask <= mem_byte_mask
+    memory.m_data => m_data
+    
+end module
+
+
+module CPU_CORE
+
+    // CPU_CORE <-> Bridge
+    outport request_type : width 8
+    outport byte_mask : width 8
+    outport addr : width 32
+    outport data64 : width 64
+    inport  rdata : width 64
+	
+	// Bridge → D$ broadcasts
+    inport  br2dc_inv_paddr_line : width 32   // physical line address
+	
+	// Bridge → I$ broadcasts
+    inport  br2ic_inv_paddr_line : width 32   // physical line address
+    
+    submodule_array cpu[2] : CPU_CORE_THREAD<12>    	//Instantiate a memory module with <size=2 MB,delay=10>
     submodule dcache : DCACHE<0>
     submodule icache : ICACHE<0>
-
+    submodule mmu : MMU
+    
     net_array d_asi[2] : capacity 1 width 8
     net_array d_addr[2] : capacity 1 width 32
     net_array d_request_type[2] : capacity 1 width 8
@@ -24,6 +91,48 @@ module Top
     net_array i_mae[2]: capacity 1 width 8
     net_array inst_pair[2]: capacity 1 width 64
 	net_array i_mmu_fsr[2]: capacity 1 width 32
+    
+    // D$ <-> MMU
+    net dm_mmu_command: capacity 1 width 8
+    net dm_request_type: capacity 1 width 8
+    net dm_asi: capacity 1 width 8
+    net dm_addr: capacity 1 width 32	
+    net dm_byte_mask: capacity 1 width 8 
+    net dm_write_data: capacity 1 width 64
+
+    net dm_mae: capacity 1 width 8 
+    net dm_cacheable: capacity 1 width 8 
+    net dm_acc: capacity 1 width 8
+    net dm_read_data: capacity 1 width 8
+    net dm_mmu_fsr: capacity 1 width 32
+    net dm_synonym_invalidate_word: capacity 1 width 32
+    
+    // I$ <-> MMU
+    net im_mmu_command: capacity 1 width 8
+    net im_request_type: capacity 1 width 8
+    net im_asi: capacity 1 width 8
+    net im_addr: capacity 1 width 32	
+    net im_byte_mask: capacity 1 width 8 
+
+    net im_mae: capacity 1 width 8 
+    net im_cacheable: capacity 1 width 8 
+    net im_acc: capacity 1 width 8
+    net im_read_data: capacity 1 width 8
+    net im_mmu_fsr: capacity 1 width 32
+    net im_synonym_invalidate_word: capacity 1 width 32
+    
+    // CPU_CORE <-> Bridge
+    net m_request_type : capacity 1  width 8
+    net m_byte_mask : capacity 1  width 8
+    net m_addr :  capacity 1 width 32
+    net m_data64 :  capacity 1 width 64
+    net  m_rdata :  capacity 1 width 64    
+    
+	// Bridge → D$ broadcasts
+    net  br2dc_inv_paddr_line_net : capacity 1 width 32   // physical line address
+	
+	// Bridge → I$ broadcasts
+    net  br2ic_inv_paddr_line_net : capacity 1 width 32   // physical line address
     
     for i in 0 to 1
         
@@ -63,12 +172,88 @@ module Top
         icache.mae_out[i] => i_mae[i]
         icache.inst_pair[i] => inst_pair[i]
         icache.mmu_fsr[i] => i_mmu_fsr[i]
-    
+		
     end for
 
+    // D$ <-> MMU
+    dcache.dm_mmu_command => dm_mmu_command
+    dcache.dm_request_type => dm_request_type
+    dcache.dm_asi => dm_asi
+    dcache.dm_addr => dm_addr	
+    dcache.dm_byte_mask => dm_byte_mask 
+    dcache.dm_write_data => dm_write_data
+
+    dcache.dm_mae <= dm_mae 
+    dcache.dm_cacheable <= dm_cacheable 
+    dcache.dm_acc <= dm_acc
+    dcache.dm_read_data <= dm_read_data
+    dcache.dm_mmu_fsr <= dm_mmu_fsr
+    dcache.dm_synonym_invalidate_word <= dm_synonym_invalidate_word
+
+    mmu.dm_mmu_command <= dm_mmu_command
+    mmu.dm_request_type <= dm_request_type
+    mmu.dm_asi <= dm_asi
+    mmu.dm_addr <= dm_addr	
+    mmu.dm_byte_mask <= dm_byte_mask 
+    mmu.dm_write_data <= dm_write_data
+
+    mmu.dm_mae => dm_mae 
+    mmu.dm_cacheable => dm_cacheable 
+    mmu.dm_acc => dm_acc
+    mmu.dm_read_data => dm_read_data
+    mmu.dm_mmu_fsr => dm_mmu_fsr
+    mmu.dm_synonym_invalidate_word => dm_synonym_invalidate_word
+    
+    // I$ <-> MMU
+    icache.im_mmu_command => im_mmu_command
+    icache.im_request_type => im_request_type
+    icache.im_asi => im_asi
+    icache.im_addr => im_addr	
+    icache.im_byte_mask => im_byte_mask 
+
+    icache.im_mae <= im_mae 
+    icache.im_cacheable <= im_cacheable 
+    icache.im_acc <= im_acc
+    icache.im_read_data <= im_read_data
+    icache.im_mmu_fsr <= im_mmu_fsr
+    icache.im_synonym_invalidate_word <= im_synonym_invalidate_word
+
+    mmu.im_mmu_command <= im_mmu_command
+    mmu.im_request_type <= im_request_type
+    mmu.im_asi <= im_asi
+    mmu.im_addr <= im_addr	
+    mmu.im_byte_mask <= im_byte_mask 
+
+    mmu.im_mae => im_mae 
+    mmu.im_cacheable => im_cacheable 
+    mmu.im_acc => im_acc
+    mmu.im_read_data => im_read_data
+    mmu.im_mmu_fsr => im_mmu_fsr
+    mmu.im_synonym_invalidate_word => im_synonym_invalidate_word
+    
+    // CPU_CORE <-> Bridge
+    mmu.request_type => m_request_type
+    mmu.byte_mask => m_byte_mask
+    mmu.addr => m_addr
+    mmu.data64 => m_data64
+    
+    mmu.rdata <= m_rdata    
+
+    request_type <= m_request_type
+    byte_mask <= m_byte_mask
+    addr <= m_addr
+    data64 <= m_data64
+    
+    rdata => m_rdata
+	
+	br2dc_inv_paddr_line => br2dc_inv_paddr_line_net
+	dcache.br2dc_inv_paddr_line <= br2dc_inv_paddr_line_net
+	br2ic_inv_paddr_line => br2ic_inv_paddr_line_net
+	icache.br2ic_inv_paddr_line <= br2ic_inv_paddr_line_net
+		
 end module
     
-module CPU
+module CPU_CORE_THREAD
 	parameter int CORE_ID = 0
 	parameter int CPU_ID = 0
     parameter int THREAD_ID = 0
@@ -479,10 +664,28 @@ module DCACHE
     inport_array request_type[2] : width 8
     inport_array byte_mask[2] : width 8
     inport_array write_data[2] : width 64
-	
+    	
     outport_array mae_out[2] : width 8
     outport_array read_data[2] : width 64
 	
+    // D$ <-> MMU
+    outport dm_mmu_command: width 8
+    outport dm_request_type: width 8
+    outport dm_asi: width 8
+    outport dm_addr: width 32	
+    outport dm_byte_mask: width 8 
+    outport dm_write_data: width 64
+
+    inport dm_mae: width 8 
+    inport dm_cacheable: width 8 
+    inport dm_acc: width 8
+    inport dm_read_data: width 8
+    inport dm_mmu_fsr: width 32
+    inport dm_synonym_invalidate_word: width 32
+
+    // Bridge → D$ broadcasts
+    inport  br2dc_inv_paddr_line : width 32   // physical line address
+    
 behavior
 
 	wait(0,1);
@@ -508,6 +711,25 @@ module ICACHE
     outport_array mae_out[2] : width 8
     outport_array inst_pair[2] : width 64
 	outport_array mmu_fsr[2] : width 32
+
+    // I$ <-> MMU
+    
+    outport im_mmu_command: width 8
+    outport im_request_type: width 8
+    outport im_asi: width 8
+    outport im_addr: width 32
+    outport im_byte_mask: width 8     
+    
+    inport im_mae: width 8 
+    inport im_cacheable: width 8 
+    inport im_acc: width 8
+    inport im_read_data: width 8
+    inport im_mmu_fsr: width 32
+    inport im_synonym_invalidate_word: width 32
+    
+	// Bridge → I$ broadcasts
+    inport  br2ic_inv_paddr_line : width 32   // physical line address
+
 	
 behavior
 
@@ -515,4 +737,104 @@ behavior
 	
 end behavior
 
+end module
+
+// ================================
+// MMU — per-core (interfaces only)
+// Reuses legacy-style naming (ic2mmu_*, dc2mmu_*, mmu2br_*, br2mmu_*)
+// ================================
+module MMU
+
+    // I$ <-> MMU
+    
+    inport im_mmu_command: width 8
+    inport im_request_type: width 8
+    inport im_asi: width 8
+    inport im_addr: width 32	
+    inport im_byte_mask: width 8 
+
+    outport im_mae: width 8 
+    outport im_cacheable: width 8 
+    outport im_acc: width 8
+    outport im_read_data: width 8
+    outport im_mmu_fsr: width 32
+    outport im_synonym_invalidate_word: width 32
+            
+    // D$ <-> MMU
+    inport dm_mmu_command: width 8
+    inport dm_request_type: width 8
+    inport dm_asi: width 8
+    inport dm_addr: width 32
+    inport dm_byte_mask: width 8 
+    inport dm_write_data: width 64
+    outport dm_mae: width 8 
+    outport dm_cacheable: width 8 
+    outport dm_acc: width 8
+    outport dm_read_data: width 8
+    outport dm_mmu_fsr: width 32
+    outport dm_synonym_invalidate_word: width 32
+
+    // MMU <-> Bridge
+    outport request_type : width 8
+    outport byte_mask : width 8
+    outport addr : width 32
+    outport data64 : width 64
+    inport  rdata : width 64
+
+behavior
+    do wait until (this_phase==1); while(1) end do;
+end behavior
+end module
+
+
+// ========================================
+// Bridge — single per system (interfaces only)
+// Adds invalidate + flush broadcasts to all D$
+// ========================================
+module Bridge
+    parameter int NUM_CPU = 1
+
+    // MMU <-> Bridge
+    inport_array request_type[NUM_CPU] : width 8
+    inport_array byte_mask[NUM_CPU] : width 8
+    inport_array addr[NUM_CPU] : width 32
+    inport_array data64[NUM_CPU] : width 64
+
+    outport_array  rdata[NUM_CPU] : width 64
+    
+    //Bridge <-> Memory
+    outport m_address :width 32
+    outport double_word: width 64
+    outport m_byte_mask: width 8
+    
+    inport m_data: width 64
+
+	// Bridge → D$ broadcasts
+    outport_array  br2dc_inv_paddr_line[NUM_CPU] : width 32   // physical line address
+	
+	// Bridge → I$ broadcasts
+    outport_array  br2ic_inv_paddr_line[NUM_CPU] : width 32   // physical line address
+	
+behavior
+    do wait until (this_phase==1); while(1) end do;
+end behavior
+end module
+
+
+// ========================================
+// Memory — single per system (interfaces only)
+// ========================================
+module Memory
+
+    // Bridge -> Memory
+    outport m_address :width 32
+    outport double_word: width 64
+    outport m_byte_mask: width 8
+    
+    inport m_data: width 64
+
+
+behavior
+    do wait until (this_phase==1); while(1) end do;
+end behavior
 end module
