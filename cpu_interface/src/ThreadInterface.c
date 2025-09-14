@@ -179,8 +179,6 @@ void updateMmuFsrFar_push(
 	data64 = setSlice64(data64, 31,0,  mmu_far);
     
     // This should be a function by itself
-    rc = pushchar(dc->d_asi_port, asi, sync); 
-    assert(rc == true);		
     rc = pushword(dc->d_addr_port, addr, sync); 
     assert(rc == true);		
     rc = pushchar(dc->d_request_type_port, REQUEST_TYPE_WRFSRFAR, sync); 
@@ -189,6 +187,8 @@ void updateMmuFsrFar_push(
     assert(rc == true);		    
     rc = pushdword(dc->d_write_data_port, data64, sync); 
     assert(rc == true);		    
+    rc = pushchar(dc->d_asi_port, asi, sync); // Let asi be the last thing going out
+    assert(rc == true);		
 	dc->push_done = 1;
 	dc->cache_transactions++;        
 }
@@ -200,8 +200,6 @@ void cpuDcacheAccess_push(uint8_t asi, uint32_t addr, uint8_t request_type,
     bool rc;
 	bool sync = true;
 	
-    rc = pushchar(dc->d_asi_port, asi, sync); 
-    assert(rc == true);		
     rc = pushword(dc->d_addr_port, addr, sync); 
     assert(rc == true);		
     rc = pushchar(dc->d_request_type_port, request_type, sync); 
@@ -210,6 +208,8 @@ void cpuDcacheAccess_push(uint8_t asi, uint32_t addr, uint8_t request_type,
     assert(rc == true);		    
     rc = pushdword(dc->d_write_data_port, data64, sync); 
     assert(rc == true);		    
+    rc = pushchar(dc->d_asi_port, asi, sync); // Let asi be the last thing going out
+    assert(rc == true);		
 	dc->push_done = 1;
 	dc->cache_transactions++;
 	
@@ -225,14 +225,15 @@ void cpuIcacheAccess_push(uint8_t asi, uint32_t addr, uint8_t request_type,
 	
 ///    
         assert(byte_mask == 0xff);
-        rc = pushchar(ic->i_asi_port, asi, sync); 
-        assert(rc == true);		
         rc = pushword(ic->i_addr_port, addr & 0xfffffff8, sync); 
         assert(rc == true);		
         rc = pushchar(ic->i_request_type_port, request_type, sync); 
         assert(rc == true);		    
         rc = pushchar(ic->i_byte_mask_port, byte_mask, sync); 
-        assert(rc == true);		    
+        assert(rc == true);
+        rc = pushchar(ic->i_asi_port, asi, sync); // Let asi be the last thing going out
+        assert(rc == true);		
+		
         ic->push_done = 1;
 	
 }
