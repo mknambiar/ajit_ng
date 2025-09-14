@@ -1,6 +1,5 @@
 module Top
-    //parameter int NUM_CPU = 1
-    submodule_array cpu[1]: CPU_CORE
+    submodule_array cpu[1]: CPU_CORE<2>
     submodule bridge : Bridge<1>
     submodule memory : Memory
 
@@ -24,7 +23,7 @@ module Top
 	// Bridge → I$ broadcasts
     net_array  br2ic_inv_paddr_line_net[1] : capacity 1 width 32   // physical line address
     
-    for i in 0 to 1
+    for i in 0 to 0
         cpu[i].request_type => m_request_type[i]
         cpu[i].byte_mask => m_byte_mask[i]
         cpu[i].addr => m_addr[i]
@@ -57,7 +56,7 @@ end module
 
 
 module CPU_CORE
-
+    parameter int CPU_THREADS = 2
     // CPU_CORE <-> Bridge
     outport request_type : width 8
     outport byte_mask : width 8
@@ -71,18 +70,18 @@ module CPU_CORE
 	// Bridge → I$ broadcasts
     inport  br2ic_inv_paddr_line : width 32   // physical line address
     
-    submodule_array cpu[2] : CPU_CORE_THREAD<12>    	//Instantiate a memory module with <size=2 MB,delay=10>
-    submodule dcache : DCACHE<0>
-    submodule icache : ICACHE<0>
+    submodule_array cpu[CPU_THREADS] : CPU_CORE_THREAD<12>    	//Instantiate a memory module with <size=2 MB,delay=10>
+    submodule dcache : DCACHE<2>
+    submodule icache : ICACHE<2>
     submodule mmu : MMU
     
-    net_array d_asi[2] : capacity 1 width 8
-    net_array d_addr[2] : capacity 1 width 32
-    net_array d_request_type[2] : capacity 1 width 8
-    net_array d_byte_mask[2] : capacity 1 width 8
-    net_array d_write_data[2] : capacity 1 width 64
-    net_array d_mae[2] : capacity 1 width 8
-    net_array d_read_data[2] : capacity 1 width 64    
+    net_array d_asi[CPU_THREADS] : capacity 1 width 8
+    net_array d_addr[CPU_THREADS] : capacity 1 width 32
+    net_array d_request_type[CPU_THREADS] : capacity 1 width 8
+    net_array d_byte_mask[CPU_THREADS] : capacity 1 width 8
+    net_array d_write_data[CPU_THREADS] : capacity 1 width 64
+    net_array d_mae[CPU_THREADS] : capacity 1 width 8
+    net_array d_read_data[CPU_THREADS] : capacity 1 width 64    
     
     net_array	i_asi[2]: capacity 1 width 8
     net_array i_addr[2]: capacity 1 width 32
@@ -103,7 +102,8 @@ module CPU_CORE
     net dm_mae: capacity 1 width 8 
     net dm_cacheable: capacity 1 width 8 
     net dm_acc: capacity 1 width 8
-    net dm_read_data: capacity 1 width 8
+    net dm_read_data: capacity 1 width 64
+    net dm_read_line: capacity 1 width 512
     net dm_mmu_fsr: capacity 1 width 32
     net dm_synonym_invalidate_word: capacity 1 width 32
     
@@ -117,7 +117,8 @@ module CPU_CORE
     net im_mae: capacity 1 width 8 
     net im_cacheable: capacity 1 width 8 
     net im_acc: capacity 1 width 8
-    net im_read_data: capacity 1 width 8
+    net im_read_data: capacity 1 width 64
+    net im_read_line: capacity 1 width 512  
     net im_mmu_fsr: capacity 1 width 32
     net im_synonym_invalidate_word: capacity 1 width 32
     
@@ -134,7 +135,7 @@ module CPU_CORE
 	// Bridge → I$ broadcasts
     net  br2ic_inv_paddr_line_net : capacity 1 width 32   // physical line address
     
-    for i in 0 to 1
+    for i in 0 to (CPU_THREADS - 1)
         
         // CPU and D Cache
 
@@ -187,6 +188,7 @@ module CPU_CORE
     dcache.dm_cacheable <= dm_cacheable 
     dcache.dm_acc <= dm_acc
     dcache.dm_read_data <= dm_read_data
+    dcache.dm_read_line <= dm_read_line
     dcache.dm_mmu_fsr <= dm_mmu_fsr
     dcache.dm_synonym_invalidate_word <= dm_synonym_invalidate_word
 
@@ -201,6 +203,7 @@ module CPU_CORE
     mmu.dm_cacheable => dm_cacheable 
     mmu.dm_acc => dm_acc
     mmu.dm_read_data => dm_read_data
+    mmu.dm_read_line => dm_read_line
     mmu.dm_mmu_fsr => dm_mmu_fsr
     mmu.dm_synonym_invalidate_word => dm_synonym_invalidate_word
     
@@ -215,6 +218,8 @@ module CPU_CORE
     icache.im_cacheable <= im_cacheable 
     icache.im_acc <= im_acc
     icache.im_read_data <= im_read_data
+    icache.im_read_line <= im_read_line
+
     icache.im_mmu_fsr <= im_mmu_fsr
     icache.im_synonym_invalidate_word <= im_synonym_invalidate_word
 
@@ -228,6 +233,8 @@ module CPU_CORE
     mmu.im_cacheable => im_cacheable 
     mmu.im_acc => im_acc
     mmu.im_read_data => im_read_data
+    mmu.im_read_line => im_read_line
+
     mmu.im_mmu_fsr => im_mmu_fsr
     mmu.im_synonym_invalidate_word => im_synonym_invalidate_word
     
@@ -652,21 +659,22 @@ end module
 
 
 module DCACHE
+    parameter int CPU_THREADS = 2
 	parameter int CORE_ID = 0
-	parameter int CPU_ID = 0
+	parameter int CACHE_LINES = 512
 	parameter int isa_mode = 32
 	parameter int bp_table_size = 16
-	parameter int report_traps = 0
+	parameter int ASSOCIATIVITY = 1
     parameter int init_pc = 0
 
-    inport_array	asi[2] : width 8
-    inport_array addr[2] : width 32
-    inport_array request_type[2] : width 8
-    inport_array byte_mask[2] : width 8
-    inport_array write_data[2] : width 64
+    inport_array	asi[CPU_THREADS] : width 8
+    inport_array addr[CPU_THREADS] : width 32
+    inport_array request_type[CPU_THREADS] : width 8
+    inport_array byte_mask[CPU_THREADS] : width 8
+    inport_array write_data[CPU_THREADS] : width 64
     	
-    outport_array mae_out[2] : width 8
-    outport_array read_data[2] : width 64
+    outport_array mae_out[CPU_THREADS] : width 8
+    outport_array read_data[CPU_THREADS] : width 64
 	
     // D$ <-> MMU
     outport dm_mmu_command: width 8
@@ -679,38 +687,138 @@ module DCACHE
     inport dm_mae: width 8 
     inport dm_cacheable: width 8 
     inport dm_acc: width 8
-    inport dm_read_data: width 8
+    inport dm_read_data: width 64
+    inport dm_read_line: width 512
     inport dm_mmu_fsr: width 32
     inport dm_synonym_invalidate_word: width 32
 
     // Bridge → D$ broadcasts
     inport  br2dc_inv_paddr_line : width 32   // physical line address
     
+    include $extern "C" {
+		#include "ajit_ng.h"	
+        #include "CacheInterfaceS.h"
+		// Forward declare the wrapper functions
+		extern bool pullword(void *obj, uint32_t *value, bool sync);
+		
+    }
+    $
+    
+    decl $uint8_t asi_in;$
+    decl $uint8_t done_0_pull, done_pull;$
+	decl $uint8_t inner_loop_count;$
+    decl $WriteThroughAllocateCache *dcache;$
+    decl $mmu_out mmu;$
+    decl $uint8_t d_request_type, d_byte_mask;$
+    decl $uint32_t d_addr;$
+    decl $uint64_t d_write_data;$
+    decl $token<sizeof(uint8_t)*8> asi_token[CPU_THREADS], mae_in;$           
+	decl $uint32_t dcache_invalidate_word, invalidate_va;$
+    decl $uint8_t last_mmu_push_count;$
+	
 behavior
+    $
+    uint32_t core_id = CORE_ID;
+    uint32_t dcache_number_of_lines = CACHE_LINES;  
+    uint32_t dcache_associativity = ASSOCIATIVITY;
 
-	wait(0,1);
+	last_mmu_push_count = 0;
+
+    
+    mmu.mae_port = (void *)&dm_mae;
+    mmu.cacheable_port = (void *)&dm_cacheable;
+    mmu.acc_port = (void *)&dm_acc;
+    mmu.read_data_port = (void *)&dm_read_data;
+    mmu.read_line_port = (void *)&dm_read_line;
+    mmu.mmu_fsr_port = (void *)&dm_mmu_fsr;
+    mmu.synonym_invalidate_word_port = (void *)&dm_synonym_invalidate_word;    
+    mmu.mmu_command_port = (void *)&dm_mmu_command;
+    mmu.request_type_port = (void *)&dm_request_type;
+    mmu.asi_port = (void *)&dm_asi;
+    mmu.addr_port = (void *)&dm_addr;	
+    mmu.byte_mask_port = (void *)&dm_byte_mask; 
+    mmu.write_data_port = (void *)&dm_write_data;
+
+    dcache = makeCache(core_id, 0, dcache_number_of_lines, dcache_associativity);
+    
+	$;
+    
+    do
+        $
+		
+        while(pullword((void *)&br2dc_inv_paddr_line, &dcache_invalidate_word, true)) {
+			invalidate_va = (dcache_invalidate_word & 0x7fffffff);
+			invalidateCacheLine(dcache, invalidate_va);        
+        }
+        done_0_pull = 0;
+		inner_loop_count = 0;
+        $;	
+		// This will be our arbitration loop. Simple!
+		do
+			wait until (this_phase==0);
+			$done_pull=asi[inner_loop_count].pull(asi_token[inner_loop_count]);$;
+			if (done_pull) then
+				$
+				mmu.mmu_push_count = 0;
+				asi_in = *(asi_token[inner_loop_count].data());
+				cpuDcacheAccess_pull(&addr[inner_loop_count], &request_type[inner_loop_count], &byte_mask[inner_loop_count], 
+								&write_data[inner_loop_count], &d_addr, &d_request_type, &d_byte_mask, &d_write_data);
+				$;
+				
+				do
+					$
+					last_mmu_push_count = mmu.mmu_push_count;
+					cpuDcacheAccess_split_123(dcache, &mmu, asi_in, d_addr, d_request_type, d_byte_mask, 
+										d_write_data);
+					$;
+					if (mmu.mmu_push_count >  last_mmu_push_count) then										
+						do 
+							$done_0_pull=dm_mae.pull(mae_in);$;
+							if(not done_0_pull) then 
+								wait 
+							else
+								$
+								mmu.mae = *(mae_in.data());
+								mmu_pull(&mmu);
+								$;
+							end if;
+						while (not done_0_pull) end do;	
+					end if;
+				while(mmu.mmu_push_count >  last_mmu_push_count) end do;
+				$
+				cpuDCacheAccess_pushback(&mae_out[inner_loop_count], &read_data[inner_loop_count], mmu.mae, mmu.read_data);
+				$;
+			end if;
+			$
+			inner_loop_count = inner_loop_count + 1;
+			$;
+		while(inner_loop_count < CPU_THREADS) end do;
+    
+	while(1) end do;
 	
 end behavior
 
 end module
 
 module ICACHE
+    parameter int CPU_THREADS = 2
 	parameter int CORE_ID = 0
 	parameter int CPU_ID = 0
 	parameter int isa_mode = 32
 	parameter int bp_table_size = 16
 	parameter int report_traps = 0
     parameter int init_pc = 0
+	parameter int CACHE_LINES = 512
+	parameter int ASSOCIATIVITY = 1
     
-    inport_array	asi[2] : width 8
-    inport_array addr[2] : width 32
-    inport_array request_type[2] : width 8
-    inport_array byte_mask[2] : width 8
-    inport_array write_data[2] : width 64
+    inport_array	asi[CPU_THREADS] : width 8
+    inport_array addr[CPU_THREADS] : width 32
+    inport_array request_type[CPU_THREADS] : width 8
+    inport_array byte_mask[CPU_THREADS] : width 8
 	
-    outport_array mae_out[2] : width 8
-    outport_array inst_pair[2] : width 64
-	outport_array mmu_fsr[2] : width 32
+    outport_array mae_out[CPU_THREADS] : width 8
+    outport_array inst_pair[CPU_THREADS] : width 64
+	outport_array mmu_fsr[CPU_THREADS] : width 32
 
     // I$ <-> MMU
     
@@ -723,7 +831,8 @@ module ICACHE
     inport im_mae: width 8 
     inport im_cacheable: width 8 
     inport im_acc: width 8
-    inport im_read_data: width 8
+    inport im_read_data: width 64
+    inport im_read_line: width 512
     inport im_mmu_fsr: width 32
     inport im_synonym_invalidate_word: width 32
     
@@ -731,9 +840,104 @@ module ICACHE
     inport  br2ic_inv_paddr_line : width 32   // physical line address
 
 	
+    include $extern "C" {
+		#include "ajit_ng.h"	
+        #include "CacheInterfaceS.h"
+		// Forward declare the wrapper functions
+		extern bool pullword(void *obj, uint32_t *value, bool sync);
+		
+    }
+    $
+    
+    decl $uint8_t asi_in;$
+    decl $uint8_t done_0_pull, done_pull;$
+	decl $uint8_t inner_loop_count;$
+    decl $WriteThroughAllocateCache *icache;$
+    decl $mmu_out mmu;$
+    decl $uint8_t i_request_type, i_byte_mask;$
+    decl $uint32_t i_addr;$
+    decl $token<sizeof(uint8_t)*8> asi_token[CPU_THREADS], mae_in;$           
+	decl $uint32_t icache_invalidate_word, invalidate_va;$
+    decl $uint8_t last_mmu_push_count;$
+	
 behavior
+    $
+    uint32_t core_id = CORE_ID;
+    uint32_t icache_number_of_lines = CACHE_LINES;  
+    uint32_t icache_associativity = ASSOCIATIVITY;
 
-	wait(0,1);
+	last_mmu_push_count = 0;
+
+    
+    mmu.mae_port = (void *)&im_mae;
+    mmu.cacheable_port = (void *)&im_cacheable;
+    mmu.acc_port = (void *)&im_acc;
+    mmu.read_data_port = (void *)&im_read_data;
+    mmu.read_line_port = (void *)&im_read_line;
+    mmu.mmu_fsr_port = (void *)&im_mmu_fsr;
+    mmu.synonym_invalidate_word_port = (void *)&im_synonym_invalidate_word;    
+    mmu.mmu_command_port = (void *)&im_mmu_command;
+    mmu.request_type_port = (void *)&im_request_type;
+    mmu.asi_port = (void *)&im_asi;
+    mmu.addr_port = (void *)&im_addr;	
+    mmu.byte_mask_port = (void *)&im_byte_mask; 
+    mmu.read_line = 0;
+
+    icache = makeCache(core_id, 1, icache_number_of_lines, icache_associativity); // Make the I Cache now
+    
+	$;
+    
+    do
+        $
+		
+        while(pullword((void *)&br2ic_inv_paddr_line, &icache_invalidate_word, true)) {
+			invalidate_va = (icache_invalidate_word & 0x7fffffff);
+			invalidateCacheLine(icache, invalidate_va);        
+        }
+        done_0_pull = 0;
+		inner_loop_count = 0;
+        $;	
+		// This will be our arbitration loop. Simple!
+		do
+			wait until (this_phase==0);
+			$done_pull=asi[inner_loop_count].pull(asi_token[inner_loop_count]);$;
+			if (done_pull) then
+				$
+				mmu.mmu_push_count = 0;
+				asi_in = *(asi_token[inner_loop_count].data());
+				cpuIcacheAccess_pull(&addr[inner_loop_count], &request_type[inner_loop_count], &byte_mask[inner_loop_count], 
+								&i_addr, &i_request_type, &i_byte_mask);
+				$;
+				
+				do
+					$
+					last_mmu_push_count = mmu.mmu_push_count;
+					cpuIcacheAccess_split_12(icache, &mmu, asi_in, i_addr, i_request_type, i_byte_mask);
+					$;
+					if (mmu.mmu_push_count >  last_mmu_push_count) then										
+						do 
+							$done_0_pull=im_mae.pull(mae_in);$;
+							if(not done_0_pull) then 
+								wait 
+							else
+								$
+								mmu.mae = *(mae_in.data());
+								mmu_pull(&mmu);
+								$;
+							end if;
+						while (not done_0_pull) end do;	
+					end if;
+				while(mmu.mmu_push_count >  last_mmu_push_count) end do;
+				$
+				cpuICacheAccess_pushback(&mae_out[inner_loop_count], &inst_pair[inner_loop_count], &mmu_fsr[inner_loop_count], mmu.mae, mmu.read_data, mmu.mmu_fsr);
+				$;
+			end if;
+			$
+			inner_loop_count = inner_loop_count + 1;
+			$;
+		while(inner_loop_count < CPU_THREADS) end do;
+    
+	while(1) end do;
 	
 end behavior
 
@@ -756,7 +960,8 @@ module MMU
     outport im_mae: width 8 
     outport im_cacheable: width 8 
     outport im_acc: width 8
-    outport im_read_data: width 8
+    outport im_read_data: width 64
+    outport im_read_line: width 512
     outport im_mmu_fsr: width 32
     outport im_synonym_invalidate_word: width 32
             
@@ -770,7 +975,8 @@ module MMU
     outport dm_mae: width 8 
     outport dm_cacheable: width 8 
     outport dm_acc: width 8
-    outport dm_read_data: width 8
+    outport dm_read_data: width 64
+    outport dm_read_line: width 512
     outport dm_mmu_fsr: width 32
     outport dm_synonym_invalidate_word: width 32
 

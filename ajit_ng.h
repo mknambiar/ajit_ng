@@ -1,6 +1,10 @@
-struct dcache_out_struct;
+//struct dcache_out_struct;
 
 //typedef uint32_t (*transaction_func_ptr)(struct dcache_out_struct*);
+
+#ifndef AJIT_NG
+
+#define AJIT_NG
 
 struct dcache_out_struct {
 	void *d_asi_port, *d_addr_port;
@@ -45,3 +49,39 @@ struct icache_in_struct {
 };
 
 typedef struct icache_in_struct icache_in;
+
+uint8_t arbitrate(uint8_t *mystatic_last_served, uint8_t *mystatic_fifo_number, uint8_t num_ports, void *obj[]);
+
+struct mmu_out_struct {
+    uint8_t mmu_push_count;
+    void *mae_port;
+    void *cacheable_port;
+    void *acc_port;
+    void *read_data_port;
+    void *read_line_port;
+    void *mmu_fsr_port;
+    void *synonym_invalidate_word_port;
+    void *mmu_command_port;
+    void *request_type_port;
+    void *asi_port;
+    void *addr_port;	
+    void *byte_mask_port; 
+    void *write_data_port;
+	
+    uint8_t mae;
+    uint8_t cacheable; 
+    uint8_t acc;
+    uint64_t read_data;
+    uint64_t line_data[8]; //should ideally be defined as  BYTES_PER_CACHE_LINE/8
+    uint32_t mmu_fsr;  //Only the ICache needs this
+    uint8_t read_line;
+    uint32_t synonym_invalidate_word;
+	uint8_t do_mmu_read_dword;
+	uint8_t do_mmu_write_dword;
+	uint8_t do_mmu_fetch_line;
+	uint8_t mmu_state_updated;
+};
+
+typedef struct mmu_out_struct mmu_out;
+
+#endif
