@@ -25,7 +25,7 @@
 #include "StatsKeeping.h"
 #include "ThreadLogging.h"
 //#include "ThreadHWserverInterface.h"
-#include "rlut.h"
+#include "rlutS.h"
 #include "ImplementationDependent.h"
 #include "AjitThreadUtils.h"
 
