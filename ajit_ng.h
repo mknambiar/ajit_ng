@@ -84,4 +84,96 @@ struct mmu_out_struct {
 
 typedef struct mmu_out_struct mmu_out;
 
+#define MMU_INIT 0
+#define MMU_PASS_THRU_READ_LINE 1
+#define MMU_PROBE 2
+#define MMU_PHY_TRANSLATE 3 // Only in this case it moves to next 3 states if success.
+#define MMU_READ_LINE_STATE 4
+#define MMU_NOT_CACHEABLE_READ_WORD 5
+#define MMU_NOT_READ_LINE 6
+#define MMU_EXIT 7
+
+//Also lets capture the mmu probe states
+#define MMU_PROBE_IN 0
+#define MMU_PROBE_OUT 1
+
+//This happens in MMU_PROBE and MMU_PHY_TRANSLATE
+#define WALK_PT_L0 0
+#define WALK_PT_L1 1
+#define WALK_PT_L2 2
+#define WALK_PT_L3 3
+#define WALK_PT_LRET 4
+
+//This happens in read write page table entries
+#define PTE_READ_WRITE_IN 0
+#define PTE_READ_WRITE_OUT 1
+
+//This happens in translate physical address
+#define TRANS_PHYS_ENTRY 0
+#define TRANS_PHYS_WALKING_1 1
+#define TRANS_PHYS_WALKING_2 2
+#define TRANS_PHYS_EXIT 3
+
+
+struct mmu_in_struct {
+    uint8_t bridge_push_count;
+    void *dm_mae_port;
+    void *dm_cacheable_port;
+    void *dm_acc_port;
+    void *dm_read_data_port;
+    void *dm_read_line_port;
+    void *dm_mmu_fsr_port;
+    void *dm_synonym_invalidate_word_port;
+    void *dm_mmu_command_port;
+    void *dm_request_type_port;
+    void *dm_asi_port;
+    void *dm_addr_port;	
+    void *dm_byte_mask_port; 
+    void *dm_write_data_port;
+	
+    void *im_mae_port;
+    void *im_cacheable_port;
+    void *im_acc_port;
+    void *im_read_data_port;
+    void *im_read_line_port;
+    void *im_mmu_fsr_port;
+    void *im_synonym_invalidate_word_port;
+    void *im_mmu_command_port;
+    void *im_request_type_port;
+    void *im_asi_port;
+    void *im_addr_port;	
+    void *im_byte_mask_port; 
+    //bridge ports
+    void *br_request_type_port;
+    void *br_byte_mask_port;
+    void *br_addr_port;
+    void *br_data64_port;
+    void *br_rdata_port;
+    
+	
+	uint8_t mmu_exec_state, mmu_probe_state, mmu_walk_pt_state, mmu_read_pt_state, mmu_trans_phy_state;
+    uint8_t mae;
+    uint8_t cacheable; 
+    uint8_t acc;
+    uint64_t read_data;
+    uint64_t line_data[8]; //should ideally be defined as  BYTES_PER_CACHE_LINE/8
+    uint32_t mmu_fsr;  //Only the ICache needs this
+    uint8_t read_line;
+    uint32_t synonym_invalidate_word;
+	uint8_t do_mmu_read_dword;
+	uint8_t do_mmu_write_dword;
+	uint8_t do_mmu_fetch_line;
+	uint8_t mmu_state_updated;
+    
+    // some of the local variables
+    uint64_t* ptr;
+    uint8_t  TLB_hit, translation_success;
+    uint32_t   va_tag;
+    uint8_t read_line_count;
+    uint64_t line_physical_addr;
+    uint32_t updated_pte; //for translate_physical_address
+};
+
+typedef struct mmu_in_struct mmu_in;
+
 #endif

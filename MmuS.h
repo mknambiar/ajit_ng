@@ -5,7 +5,8 @@
 #define _MMU_H_
 #include <stdint.h>
 #include "Ajit_Hardware_Configuration.h"
-#include "rlut.h"
+#include "ajit_ng.h"
+#include "rlutS.h"
 #ifdef USE_NEW_TLB
 #include "tlbs.h"
 #endif
@@ -36,33 +37,23 @@ typedef struct _MmuState {
 
 	uint32_t core_id;
 
-	char req_pipe[256];
-	char addr_pipe[256];
-	char wdata_pipe[256];
-	char byte_mask_pipe[256];
-	char rdata_pipe[256];
-
-	char to_rlut_pipe[256];
-
-
-
 	// Mmu Registers, maintained on a per-thread basis.
-	uint32_t MmuControlRegister[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t MmuContextTablePointerRegister[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t MmuContextRegister[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t MmuFaultStatusRegister[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t MmuFaultAddressRegister[MMU_MAX_NUMBER_OF_THREADS];
+	uint32_t MmuControlRegister;
+	uint32_t MmuContextTablePointerRegister;
+	uint32_t MmuContextRegister;
+	uint32_t MmuFaultStatusRegister;
+	uint32_t MmuFaultAddressRegister;
 
-	uint8_t  Mmu_FSR_FAULT_CLASS[MMU_MAX_NUMBER_OF_THREADS]; //The type of the last FSR fault (NONE/IACCESS_FAULT/DACCESS_FAULT)
+	uint8_t  Mmu_FSR_FAULT_CLASS; //The type of the last FSR fault (NONE/IACCESS_FAULT/DACCESS_FAULT)
 
 	//Variables for keep count of Mmu events
-	uint32_t Num_Mmu_bypass_accesses[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t Num_Mmu_probe_requests[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t Num_Mmu_flush_requests[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t Num_Mmu_register_reads[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t Num_Mmu_register_writes[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t Num_Mmu_translated_accesses[MMU_MAX_NUMBER_OF_THREADS];
-	uint32_t Num_Mmu_TLB_hits[MMU_MAX_NUMBER_OF_THREADS];
+	uint32_t Num_Mmu_bypass_accesses;
+	uint32_t Num_Mmu_probe_requests;
+	uint32_t Num_Mmu_flush_requests;
+	uint32_t Num_Mmu_register_reads;
+	uint32_t Num_Mmu_register_writes;
+	uint32_t Num_Mmu_translated_accesses;
+	uint32_t Num_Mmu_TLB_hits;
 
 
 #ifdef USE_NEW_TLB
@@ -91,17 +82,13 @@ typedef struct _MmuState {
 MmuState* makeMmuState (uint32_t core_id);
 void resetMmuState (MmuState* ms);
 void printMmuStatistics(MmuState* ms);
-void Mmu(MmuState* ms, int thread_id,
+void Mmu_split_123(MmuState* ms,  
+            mmu_in *mmu,
 			uint8_t mmu_command,
 			uint8_t request_type,
 			uint8_t asi, uint32_t addr,	
-			uint8_t byte_mask, uint64_t write_data,
-			uint8_t* mae, 
-			uint8_t* cacheable, 
-			uint8_t* acc,
-			uint64_t* read_data,
-			uint32_t* mmu_fsr,
-			uint32_t* synonym_invalidate_word);
-
-void register_mmu_pipes (MmuState* ms);
+			uint8_t byte_mask, uint64_t write_data);
+void mmu_cache_pull(mmu_in *mmu, uint8_t dcache, uint8_t *mmu_dword_command, uint8_t *request_type, uint32_t *addr, uint8_t *byte_mask, uint64_t *write_data);
+void mmu_cache_pushback(mmu_in *mmu, uint8_t dcache);
+void sysMemBusRequest_push(mmu_in *mmu, uint8_t request_type, uint8_t byte_mask, uint32_t addr, uint64_t data64);
 #endif

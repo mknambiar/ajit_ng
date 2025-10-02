@@ -73,7 +73,7 @@ module CPU_CORE
     submodule_array cpu[CPU_THREADS] : CPU_CORE_THREAD<12>    	//Instantiate a memory module with <size=2 MB,delay=10>
     submodule dcache : DCACHE<2>
     submodule icache : ICACHE<2>
-    submodule mmu : MMU
+    submodule mmu : MMU<0>
     
     net_array d_asi[CPU_THREADS] : capacity 1 width 8
     net_array d_addr[CPU_THREADS] : capacity 1 width 32
@@ -842,7 +842,7 @@ module ICACHE
 	
     include $extern "C" {
 		#include "ajit_ng.h"	
-        #include "CacheInterfaceS.h"
+        #include "MmuS.h"
 		// Forward declare the wrapper functions
 		extern bool pullword(void *obj, uint32_t *value, bool sync);
 		
@@ -950,7 +950,14 @@ end module
 module MMU
 
     // I$ <-> MMU
-    
+    parameter int CORE_ID = 0
+	parameter int DCACHE_LINES = 512
+	parameter int DASSOCIATIVITY = 1
+	parameter int ICACHE_LINES = 512
+	parameter int IASSOCIATIVITY = 1
+
+
+
     inport im_mmu_command: width 8
     inport im_request_type: width 8
     inport im_asi: width 8
@@ -972,6 +979,7 @@ module MMU
     inport dm_addr: width 32
     inport dm_byte_mask: width 8 
     inport dm_write_data: width 64
+	
     outport dm_mae: width 8 
     outport dm_cacheable: width 8 
     outport dm_acc: width 8
@@ -987,8 +995,128 @@ module MMU
     outport data64 : width 64
     inport  rdata : width 64
 
+    include $extern "C" {
+		#include "ajit_ng.h"	
+        #include "rlutS.h"
+		// Forward declare the wrapper functions		
+    }
+    $
+    
+    decl $uint8_t asi_in;$
+    decl $uint8_t done_0_pull, done_pull;$
+	decl $uint8_t inner_loop_count, dcache;$
+    decl $mmu_in mmu;$
+	decl $MmuState *mmu_state;$
+    decl $uint8_t mmu_dword_command, request_type_in, byte_mask_in;$
+    decl $uint32_t addr_in;$
+    decl $uint64_t write_data;$
+    decl $token<sizeof(uint8_t)*8> asi_token;$
+    decl $token<sizeof(uint64_t)*8> read_data_token;$
+    decl $uint8_t last_bridge_push_count;$
+
 behavior
-    do wait until (this_phase==1); while(1) end do;
+
+    $
+    uint32_t core_id = CORE_ID;
+
+	last_bridge_push_count = 0;
+
+    
+    mmu.im_mae_port = (void *)&im_mae;
+    mmu.im_cacheable_port = (void *)&im_cacheable;
+    mmu.im_acc_port = (void *)&im_acc;
+    mmu.im_read_data_port = (void *)&im_read_data;
+    mmu.im_read_line_port = (void *)&im_read_line;
+    mmu.im_mmu_fsr_port = (void *)&im_mmu_fsr;
+    mmu.im_synonym_invalidate_word_port = (void *)&im_synonym_invalidate_word;    
+    mmu.im_mmu_command_port = (void *)&im_mmu_command;
+    mmu.im_request_type_port = (void *)&im_request_type;
+    mmu.im_asi_port = (void *)&im_asi;
+    mmu.im_addr_port = (void *)&im_addr;	
+    mmu.im_byte_mask_port = (void *)&im_byte_mask; 
+
+    mmu.dm_mae_port = (void *)&dm_mae;
+    mmu.dm_cacheable_port = (void *)&dm_cacheable;
+    mmu.dm_acc_port = (void *)&dm_acc;
+    mmu.dm_read_data_port = (void *)&dm_read_data;
+	mmu.dm_write_data_port = (void *)&dm_write_data;
+    mmu.dm_read_line_port = (void *)&dm_read_line;
+    mmu.dm_mmu_fsr_port = (void *)&dm_mmu_fsr;
+    mmu.dm_synonym_invalidate_word_port = (void *)&dm_synonym_invalidate_word;    
+    mmu.dm_mmu_command_port = (void *)&dm_mmu_command;
+    mmu.dm_request_type_port = (void *)&dm_request_type;
+    mmu.dm_asi_port = (void *)&dm_asi;
+    mmu.dm_addr_port = (void *)&dm_addr;	
+    mmu.dm_byte_mask_port = (void *)&dm_byte_mask; 
+    //bridge ports
+    mmu.br_request_type_port = (void *)&request_type;
+    mmu.br_byte_mask_port = (void *)&byte_mask;
+    mmu.br_addr_port = (void *)&addr;
+    mmu.br_data64_port = (void *)&data64;
+    mmu.br_rdata_port = (void *)&rdata;
+	
+	mmu.read_line = 0;
+    uint32_t icache_number_of_lines = ICACHE_LINES;  
+    uint32_t icache_associativity = IASSOCIATIVITY;
+    uint32_t dcache_number_of_lines = DCACHE_LINES;  
+    uint32_t dcache_associativity = DASSOCIATIVITY;
+
+	mmu_state =  makeMmuState(core_id);
+    setupRlutManager(core_id, icache_number_of_lines, icache_associativity, dcache_number_of_lines, dcache_associativity);
+
+	
+	$;
+	
+    do 
+	
+        $
+        done_0_pull = 0;
+		inner_loop_count = 0;
+        $;	
+		// This will be our arbitration loop. Simple!
+		do
+			wait until (this_phase==0);
+			$dcache = inner_loop_count;$;
+			$done_pull= (dcache)?dm_asi.pull(asi_token):im_asi.pull(asi_token);$;
+			if (done_pull) then
+				$
+				mmu.bridge_push_count = 0;
+				asi_in = *(asi_token.data());
+				mmu_cache_pull(&mmu, dcache,  &mmu_dword_command, &request_type_in, &addr_in, &byte_mask_in, &write_data);
+				mmu.read_line = (mmu_dword_command == MMU_READ_LINE)? 1:0;
+                mmu.mmu_exec_state = MMU_INIT;
+				$;
+				
+				do
+					$
+					last_bridge_push_count = mmu.bridge_push_count;
+					Mmu_split_123(mmu_state, &mmu, mmu_dword_command, request_type_in, asi_in, addr_in, byte_mask_in, write_data);
+					$;
+					if (mmu.bridge_push_count >  last_bridge_push_count) then										
+						do 
+							$done_0_pull=rdata.pull(read_data_token);$;
+							if(not done_0_pull) then 
+								wait 
+							else
+								$
+								*mmu.ptr = *(read_data_token.data());
+								$;
+							end if;
+						while (not done_0_pull) end do;	
+					end if;
+				while(mmu.bridge_push_count >  last_bridge_push_count) end do;
+				$
+				mmu_cache_pushback(&mmu, dcache);
+				$;
+			end if;
+			$
+			inner_loop_count = inner_loop_count + 1;
+			$;
+		while(inner_loop_count < 2) end do;	// 2 here means one for dcache and one for icache
+	
+	
+	while(1) end do;
+
 end behavior
 end module
 
