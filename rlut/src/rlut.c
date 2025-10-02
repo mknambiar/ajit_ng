@@ -1,0 +1,298 @@
+#include <stdint.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <stdio.h>
+#include "tlbs.h"
+#include "rlutS.h"
+#include "ASI_values.h"
+#include "Ajit_Hardware_Configuration.h"
+
+
+RlutManager rlut_manager;
+
+int myLog2(int x)
+{
+	int ret_val = 0;
+	while (x > 1)
+	{
+		ret_val++;
+		x = (x >> 1);
+	}
+	return(ret_val);
+}
+
+
+// Technically, there is no reason to keep the entire
+// VA line address in the RLUT.  We know that bits [5:0] of
+// the VA line address are the same as the PA to which it
+// is mapped.
+// 
+// Added: If the cache associativity is 2^u, and if
+//   u == 0, we need to keep only 3-bits of data.
+// Added: if cache associativity is 2^u we keep
+//	3-u bits of data (entire set will be invalidated)
+//   
+uint32_t reduceVaLineAddr(Rlut* r, uint32_t va_line_addr)
+{
+	uint32_t ret_val = 0;
+
+	//
+	// line adddress is [31:6].  reduced VA address is 
+	//   either 
+	//   	  [14:12]  for direct mapped cache.
+	//   	     (data_width = 3)
+	//   or
+	//        [13:12]  for 2-way set associative cache.
+	//   	     (data_width = 2)
+	//
+	ret_val  = (va_line_addr >> (LOG_BASE_PAGE_SIZE - LOG_CACHE_LINE_SIZE)) & ((1 << r->data_width)  - 1);
+
+	return(ret_val);
+}
+
+
+//
+// Let the cache associativity be 2^r.  Then (3-r) bits of the VA are stored
+// in the rlut data region.
+// 
+// Given bits [(8-r):6] of the VA, the line address is obatined by concatenating
+// bits [5:0] of the PA line address to them.
+// reduced VA is either
+//     [14:12]  of actual VA for direct mapped cache.
+//   OR
+//     [13:12]  of actual VA for 2-way set associative cache.
+// etc.  
+//
+uint32_t reconstructVaLineAddr(uint32_t pa_line_addr, uint32_t reduced_va_line_addr)
+{
+	uint32_t ret_val = 0;
+	
+
+	// VA[31:12] is shifted left by 6 and bottom 6 bits of PA line address are 
+	// concatenated at the lower end.. to produce reconstructed VA line address.
+	ret_val =  (reduced_va_line_addr << (LOG_BASE_PAGE_SIZE - LOG_CACHE_LINE_SIZE));
+	ret_val =  ret_val | (pa_line_addr & ((1 << (LOG_BASE_PAGE_SIZE - LOG_CACHE_LINE_SIZE))-1));
+
+	return(ret_val);
+}
+
+
+
+uint32_t generateTag(Rlut* r, uint32_t pa_line_addr)
+{
+	uint32_t ret_val = pa_line_addr >> r->pa_tlb->log_number_of_sets;
+	return(ret_val);
+}
+
+
+uint32_t generateSetIndex(Rlut* r, uint32_t pa_line_addr)
+{
+	uint32_t ret_val = pa_line_addr & ((r->pa_tlb->mem_size/r->pa_tlb->set_size) - 1);
+	return(ret_val);
+}
+
+void initRlut(Rlut* r, int cpu_id, int is_icache, int cache_size_in_lines, int cache_set_size)
+{
+	r->is_icache_rlut = is_icache;
+	r->cpu_id = cpu_id;
+	r->cache_size_in_lines = cache_size_in_lines;
+	r->cache_set_size = cache_set_size;
+
+	r->number_of_requests_from_mmu = 0;
+	r->number_of_requests_from_biu = 0;
+	r->number_of_synonym_invalidates = 0;
+	r->number_of_coherency_invalidates = 0;
+
+	int mem_size   = cache_size_in_lines;
+	int set_size   = (cache_size_in_lines * CACHE_LINE_SIZE / BASE_PAGE_SIZE);
+
+	assert(set_size > 0);
+
+	int tag_width  = (PHYSICAL_ADDR_WIDTH - LOG_CACHE_LINE_SIZE) - myLog2(set_size);
+	
+	//
+	// OK. Here we take a decision..
+	//    For a VIVT set associative cache, we invalidate the entire set!
+	//    This allows us to use fewer bits....
+	//
+	r->data_width = 
+		((myLog2(cache_size_in_lines) + LOG_CACHE_LINE_SIZE - (myLog2(r->cache_set_size)-1)) - LOG_BASE_PAGE_SIZE);
+
+	// r->data_width == 0 implies trivial translation.
+	if(r->data_width < 0)
+		r->data_width = 0;
+
+
+	r->pa_tlb      = findOrAllocateSetAssociativeMemory((cpu_id*1000) + (is_icache ? 9 : 10),
+									tag_width, 
+									r->data_width, 
+									myLog2(mem_size),
+									myLog2(set_size));
+
+	fprintf(stderr,"Info: initialized rlut for core %d (icache=%d), data_width=%d.\n",
+				cpu_id, is_icache, r->data_width);
+				
+  	pthread_mutex_init (&(r->rlut_mutex), NULL);
+}
+
+void printRlutStatistics(Rlut* r)
+{
+	fprintf(stderr,"Info: RLUT %d %s:  mmu-reqs = %d, biu-reqs=%d, syn-invalidates=%d, coh-invalidates=%d\n",
+			r->cpu_id, 
+			r->is_icache_rlut ? "icache" : "dcache",
+			r->number_of_requests_from_mmu,
+			r->number_of_requests_from_biu,
+			r->number_of_synonym_invalidates,
+			r->number_of_coherency_invalidates);
+}
+
+void printRlutStatisticsInManager()
+{
+    printRlutStatistics(&(rlut_manager.icache_rluts));
+    printRlutStatistics(&(rlut_manager.dcache_rluts));
+}
+
+void    flushRlut(Rlut* r)
+{
+	clearSetAssociativeMemory (r->pa_tlb);
+}
+
+uint32_t lookupAndUpdateRlut(Rlut* r, uint32_t pa_line_addr, uint32_t va_line_addr)
+{
+	pthread_mutex_lock(&(r->rlut_mutex));
+
+	r->number_of_requests_from_mmu += 1;
+
+	uint32_t pa_tag = generateTag(r, pa_line_addr);
+	uint32_t pa_set_id = generateSetIndex(r, pa_line_addr);
+
+	uint32_t va_reduced = reduceVaLineAddr (r, va_line_addr);
+
+	uint8_t hit = 0;
+	uint64_t hit_va_64 = 0;
+
+	operateOnSetAssociativeMemory (r->pa_tlb,
+					1, // ignore collisions.
+					0, // clear
+					0, // erase
+					1,  // write
+					va_reduced,
+					pa_tag,
+					pa_set_id,
+					1,  // lookup
+					pa_tag,
+					pa_set_id, 
+					&hit,
+					&hit_va_64);
+					
+	uint32_t hit_va = hit_va_64;
+
+	uint32_t ret_val = 0;
+	if(hit && (hit_va != va_reduced))
+	{
+		ret_val = (hit ? ((hit << 31) | reconstructVaLineAddr(pa_line_addr, hit_va)) : 0);
+		r->number_of_synonym_invalidates += 1;
+#ifdef DEBUG
+		fprintf(stderr,"Info: Synonym invalidate.  for pa=0x%x va=0x%x hit_va=0%x\n", 
+						pa_line_addr << 6, 
+						va_line_addr << 6,
+						hit_va << 6);
+#endif
+	}
+
+	pthread_mutex_unlock(&(r->rlut_mutex));
+	return(ret_val);
+}
+
+uint32_t lookupRlut(Rlut* r, uint32_t pa_line_addr)
+{
+	pthread_mutex_lock(&(r->rlut_mutex));
+
+	r->number_of_requests_from_biu += 1;
+
+	uint32_t pa_tag = generateTag(r, pa_line_addr);
+	uint32_t pa_set_id = generateSetIndex(r, pa_line_addr);
+
+	uint8_t hit = 0;
+	uint64_t hit_va_64 = 0;
+	operateOnSetAssociativeMemory (r->pa_tlb,
+					1, // ignore collisions
+					0, // clear
+					0, // erase
+					0,  // write
+					0,
+					0,
+					0,
+					1,  // lookup
+					pa_tag,
+					pa_set_id, 
+					&hit,
+					&hit_va_64);
+					
+	uint32_t hit_va  = hit_va_64;
+	uint32_t ret_val = (hit ? ((hit << 31) | reconstructVaLineAddr(pa_line_addr, hit_va)) : 0);
+
+	if(hit)
+	{
+#ifdef DEBUG
+		fprintf(stderr,"Info: Coherence invalidate.  for pa=0x%x  hit_va=0%x\n", 
+						pa_line_addr << 6, 
+						reconstructVaLineAddr(pa_line_addr, hit_va);
+#endif
+		r->number_of_coherency_invalidates += 1;
+	}
+
+	pthread_mutex_unlock(&(r->rlut_mutex));
+	return(ret_val);
+}
+
+void setupRlutManager (int ncpus, int icache_size_in_lines, int icache_associativity,
+				int dcache_size_in_lines, int dcache_associativity)
+{
+	assert(ncpus <= MAX_N_CPUS); // We will use this as cpu_id
+
+	rlut_manager.number_of_cpus = ncpus;
+    initRlut(&(rlut_manager.icache_rluts), ncpus, 1, icache_size_in_lines, icache_associativity);
+    initRlut(&(rlut_manager.dcache_rluts), ncpus, 0, dcache_size_in_lines, dcache_associativity);
+}
+
+uint32_t lookupAndUpdateRlutInManager(int cpu_id, uint32_t pa_line_addr, uint32_t va_line_addr, int icache_flag)
+{
+	assert(cpu_id < rlut_manager.number_of_cpus);
+	assert(cpu_id >= 0);
+
+	uint32_t ret_val = 0;
+	if(icache_flag)
+		ret_val = lookupAndUpdateRlut(&(rlut_manager.icache_rluts), pa_line_addr, va_line_addr);
+	else
+		ret_val = lookupAndUpdateRlut(&(rlut_manager.dcache_rluts), pa_line_addr, va_line_addr);
+	
+	return(ret_val);
+}
+
+//  this is called from the BIU/bridge 
+uint32_t lookupRlutInManager(int cpu_id, uint32_t pa_line_addr, int icache_flag)
+{
+	assert(cpu_id < rlut_manager.number_of_cpus);
+	assert(cpu_id >= 0);
+
+	uint32_t ret_val = 0;
+	if(icache_flag)
+		ret_val = lookupRlut(&(rlut_manager.icache_rluts), pa_line_addr);
+	else
+		ret_val = lookupRlut(&(rlut_manager.dcache_rluts), pa_line_addr);
+	
+	return(ret_val);
+}
+
+void flushRlutInManager(int cpu_id, int icache_flag)
+{
+	assert(cpu_id < rlut_manager.number_of_cpus);
+	assert(cpu_id >= 0);
+
+	if(icache_flag)
+		flushRlut(&(rlut_manager.icache_rluts));
+	else
+		flushRlut(&(rlut_manager.dcache_rluts));
+}
+
