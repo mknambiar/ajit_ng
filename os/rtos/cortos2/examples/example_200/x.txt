@@ -1,0 +1,261 @@
+Info: number of cores=1.
+Info: number of threads per core=2.
+Info: init_pc=0x40000000.
+Info: branch-predictor table size=16.
+Info: dcache-number-of-lines=0x200.
+Info: icache-number-of-lines=0x200.
+Info:addMem: added mem target lowermem perms=0x3, address-range 0 to fffeffff
+Info: bridge: added peripheral irc_mt with address range 0xffff3000 -> 0xffff30ff
+Info: bridge: added peripheral timer with address range 0xffff3100 -> 0xffff311c
+Info: bridge: added peripheral serial with address range 0xffff3200 -> 0xffff3213
+Info: bridge: added peripheral serial_1 with address range 0xffff3240 -> 0xffff3253
+Info: bridge: added peripheral scratch_pad with address range 0xffff2c00 -> 0xffff2ffc
+Info:addMem: added mem target uppermem perms=0x3, address-range ffff4000 to ffffffff
+Info: initialized rlut for core 0 (icache=1), data_width=4.
+Info: initialized rlut for core 0 (icache=0), data_width=4.
+Info: starting environment threads
+Info: made icache number_of_lines=512, log_number_of_lines=9
+Info: made dcache number_of_lines=512, log_number_of_lines=9
+
+Info: registering hw-server pipes for thread=0, core=0
+
+Info: registering hw-server pipes for thread=0, core=0
+
+Info: starting hw-server for cpu-id 0
+Info:pThreadUtils: started thread IrcMt_Control
+
+Info: starting hw-server for cpu-id 0
+Info:pThreadUtils: started thread IrcMt_Output
+Info: started IrcMt_Control (0,0)
+Info: started IrcMt threads for thread=(0,0)
+Info:pThreadUtils: started thread IrcMt_Control
+Info: started IrcMt_Output (0,0)
+Info:pThreadUtils: started thread IrcMt_Output
+Info: started IrcMt_Control (0,1)
+Info: started IrcMt threads for thread=(0,1)
+Info:pThreadUtils: started thread distributorDaemon
+Info: started IrcMt_Output (0,1)
+Info:pThreadUtils: started thread Timer_Control
+Info:pThreadUtils: started thread Timer_Output
+Info:pThreadUtils: started thread scratch_pad_control
+Info:pThreadUtils: started thread Serial_Control
+Info:pThreadUtils: started thread Serial_Rx
+Info: created Serial_Control thread for Serial 0.
+Info:pThreadUtils: started thread Serial_Tx
+Info: created Serial_Tx thread for Serial 0.
+Info: created Serial_Rx thread for Serial 0.
+Info:pThreadUtils: started thread Serial_Control
+Info:pThreadUtils: started thread Serial_Rx
+Info: created Serial_Control thread for Serial 1.
+Info:pThreadUtils: started thread Serial_Tx
+Info: created Serial_Rx thread for Serial 1.
+Info: starting console threads.
+Info: created Serial_Tx thread for Serial 1.
+Info:pThreadUtils: started thread consoleOutput
+Info:pThreadUtils: started thread consoleOutput
+Info:pThreadUtils: started thread consoleInput
+------ MMU-0 TLB flushed due to context-table-pointer-write (=4000ac1) ------
+------ MMU-0 TLB flushed due to context-table-pointer-write (=4000ac1) ------
+Info:Thread  : Thread entered ERROR MODE at PC=0x4000c800 thread=0, core=0
+ 
+Info: doval connected to core,thread=0,0
+Info:Thread  : Thread entered ERROR MODE at PC=0x4000c800 thread=1, core=0
+ 
+Info: doval connected to core,thread=0,1
+
+
+Validating : Result file = main.results, Log file = main.log
+
+
+Tests Successful.
+Thread 0 entered ERROR MODE at PC=0x4000c800
+ 
+Mmu configuration for core=0:
+
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+
+Mmu statistics for core=0, thread=0: MMU ENABLED = 1
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+	Accesses with Mmu bypassed or disabled 	= 389970
+	Mmu_probe_requests  	= 0
+	Mmu_flush_requests  	= 0
+	Mmu_register_reads   	= 0
+	Mmu_register_writes 	= 2
+	Mmu_translated_accesses = 628
+	Mmu_TLB_hits            = 601
+
+Mmu Register values :
+	Control register 	= 0x1
+	Context table ptr 	= 0x4000ac1
+	Context register   	= 0x0
+	FSR		   	= 0x0
+	FAR		 	= 0x0
+
+Mmu statistics for core=0, thread=1: MMU ENABLED = 1
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+	Accesses with Mmu bypassed or disabled 	= 356582
+	Mmu_probe_requests  	= 0
+	Mmu_flush_requests  	= 0
+	Mmu_register_reads   	= 0
+	Mmu_register_writes 	= 2
+	Mmu_translated_accesses = 2632
+	Mmu_TLB_hits            = 2624
+
+Mmu Register values :
+	Control register 	= 0x1
+	Context table ptr 	= 0x4000ac1
+	Context register   	= 0x0
+	FSR		   	= 0x0
+	FAR		 	= 0x0
+Program exited with a trap type = 0x0Thread 1 entered ERROR MODE at PC=0x4000c800
+ 
+Statistics for Thread 0 (Core 0):
+    number-of-instructions-executed = 320805
+    number-of-traps  = 4
+    number-of-cti  = 80134, mispredicts=420
+    cycle-count estimate = 52782009
+Branch-predictor entries.
+	 0x40000500 0x400003e4 0x0
+	 0x40007484 0x4000748c 0x3
+	 0x40003688 0x40003044 0x0
+	 0x400022cc 0x40002450 0x0
+	 0x40007490 0x40007498 0x3
+	 0x40002454 0x4000245c 0x3
+	 0x40003698 0x40000458 0x0
+	 0x40000b1c 0x40000be8 0x0
+	 0x40000aa0 0x40007434 0x0
+	 0x40003664 0x40002ed0 0x0
+	 0x40002268 0x40002270 0x3
+	 0x400081ac 0x400081d8 0x0
+
+Mmu configuration for core=0:
+
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+
+Mmu statistics for core=0, thread=0: MMU ENABLED = 1	 0x40000ab0 0x40000ab8 0x3
+	 0x40000df4 0x40008158 0x0
+	 0x400022b8 0x40000a88 0x0
+	 0x4000367c 0x40003664 0x1
+
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+	Accesses with Mmu bypassed or disabled 	= 389970    RAS: push-count=258, pop-count=307, mispredicts=12 (surplus=-49).
+
+	Mmu_probe_requests  	= 0
+	Mmu_flush_requests  	= 0
+	Mmu_register_reads   	= 0
+	Mmu_register_writes 	= 2
+	Mmu_translated_accesses = 628
+	Mmu_TLB_hits            = 601
+
+Mmu Register values :
+	Control register 	= 0x1
+	Context table ptr 	= 0x4000ac1
+	Context register   	= 0x0
+	FSR		   	= 0x0
+	FAR		 	= 0x0
+
+Mmu statistics for core=0, thread=1: MMU ENABLED = 1
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+	Accesses with Mmu bypassed or disabled 	= 356582
+	Mmu_probe_requests  	= 0
+	Mmu_flush_requests  	= 0
+	Mmu_register_reads   	= 0
+	Mmu_register_writes 	= 2
+	Mmu_translated_accesses = 2632
+	Mmu_TLB_hits            = 2624
+
+Mmu Register values :
+	Control register 	= 0x1
+	Context table ptr 	= 0x4000ac1
+	Context register   	= 0x0Info: core,thread=0,0 finished.
+
+	FSR		   	= 0x0
+	FAR		 	= 0x0
+Program exited with a trap type = 0x0
+Statistics for Thread 1 (Core 0):
+    number-of-instructions-executed = 314515
+    number-of-traps  = 4
+    number-of-cti  = 63888, mispredicts=415
+    cycle-count estimate = 52775699
+Branch-predictor entries.
+	 0x40002a00 0x40002a08 0x3
+	 0x40003904 0x40003928 0x0
+	 0x4000b0c8 0x400005b8 0x0
+	 0x4000b0cc 0x400003e4 0x0
+	 0x40007490 0x40007498 0x3
+	 0x40002454 0x4000245c 0x3
+	 0x40003698 0x40000458 0x0
+	 0x40000b1c 0x40000be8 0x0
+	 0x4000c060 0x4000b064 0x0
+	 0x40003664 0x40002ed0 0x0
+	 0x40003728 0x400038d4 0x0
+	 0x400005ac 0x40003718 0x0
+	 0x40000ab0 0x40000ab8 0x3
+	 0x400005b4 0x400003e4 0x0
+	 0x400022b8 0x40000a88 0x0
+	 0x400003fc 0x40000404 0x3
+    RAS: push-count=248, pop-count=299, mispredicts=7 (surplus=-51).
+Info: core,thread=0,1 finished.
+Total time taken by testbench: 9 secs
+
+Mmu configuration for core=0:
+
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+
+Mmu statistics for core=0, thread=0: MMU ENABLED = 1
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+	Accesses with Mmu bypassed or disabled 	= 389970
+	Mmu_probe_requests  	= 0
+	Mmu_flush_requests  	= 0
+	Mmu_register_reads   	= 0
+	Mmu_register_writes 	= 2
+	Mmu_translated_accesses = 628
+	Mmu_TLB_hits            = 601
+
+Mmu Register values :
+	Control register 	= 0x1
+	Context table ptr 	= 0x4000ac1
+	Context register   	= 0x0
+	FSR		   	= 0x0
+	FAR		 	= 0x0
+
+Mmu statistics for core=0, thread=1: MMU ENABLED = 1
+	TLB size (L0 2 L1 8 L2 16 L3 64)
+	Accesses with Mmu bypassed or disabled 	= 356582
+	Mmu_probe_requests  	= 0
+	Mmu_flush_requests  	= 0
+	Mmu_register_reads   	= 0
+	Mmu_register_writes 	= 2
+	Mmu_translated_accesses = 2632
+	Mmu_TLB_hits            = 2624
+
+Mmu Register values :
+	Control register 	= 0x1
+	Context table ptr 	= 0x4000ac1
+	Context register   	= 0x0
+	FSR		   	= 0x0
+	FAR		 	= 0x0
+Statistics for ICACHE core-id=0
+    number-of-accesses=635326
+    number-of-hits=26029
+    number-of-misses=609297
+Statistics for DCACHE core-id=0
+    number-of-accesses=141623
+    number-of-locked-accesses=4
+    number-of-flushes=4
+    number-of-hits=1484
+    number-of-misses=140131
+    number-of-write_hits=357
+    number-of-write_misses=78161
+    number-of-read_hits=1127
+    number-of-read_misses=61970
+Info: RLUT 0 icache:  mmu-reqs = 121, biu-reqs=0, syn-invalidates=0, coh-invalidates=0
+Info: RLUT 0 dcache:  mmu-reqs = 48, biu-reqs=0, syn-invalidates=0, coh-invalidates=0
+Connection established with HW Server !
+CoRTOS:LOG: INFO: ../main.c:cortos_entry_func_001(): Thread 0,0 finished! (15, 240).
+
+Reached HwServer - TA 0 (cpu-id=0)
+Connection established with HW Server !
+CoRTOS:LOG: INFO: ../main.c:cortos_entry_func_101(): Thread 0,1 finished! (15, 240).
+
+Reached HwServer - TA 0 (cpu-id=0)

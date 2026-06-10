@@ -1,0 +1,7 @@
+CoRTOS:LOG: DEBUG: ../main.c:startup_initialization(): startup: hdr = 2164260784
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): Acquiring Memory! 2164260784
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): Waiting for Message!
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): Sending Message!
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): Message Sent!
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): Received Message!
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): Releasing Memory!

@@ -1,0 +1,16 @@
+# Fixed markers; each line must appear unless count is specified.
+# WHETSTONE_PASSES_X100 is expanded by run_regression_testcases_v2.sh.
+HiFromAjit
+Double Precision C/C++ Whetstone Benchmark|count=2
+Use ${WHETSTONE_PASSES_X100:-1}  passes (x 100)
+Loop content|count=2
+N1 floating point|count=2
+N2 floating point|count=2
+N3 if then else|count=2
+N4 fixed point|count=2
+N5 sin,cos etc.|count=2
+N6 floating point|count=2
+N7 assignments|count=2
+N8 exp,sqrt etc.|count=2
+MWIPS
+Results  to  load  to  spreadsheet|count=2

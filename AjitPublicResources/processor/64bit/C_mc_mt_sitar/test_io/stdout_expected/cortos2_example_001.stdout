@@ -1,0 +1,2 @@
+CoRTOS:LOG: DEBUG: ../main.c:main(): Hello There. Value of b is 13
+CoRTOS:LOG: DEBUG: ../main.c:main(): CORTOS_ENV has been defined!

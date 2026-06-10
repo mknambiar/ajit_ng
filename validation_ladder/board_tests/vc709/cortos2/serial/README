@@ -1,0 +1,6 @@
+A test program that shows the two print routines
+available 
+	ee_printf
+	mp_printf
+
+mp_printf is a bit better.

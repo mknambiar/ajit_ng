@@ -1,0 +1,13 @@
+# Fixed markers; each line must appear unless count is specified.
+# COREMARK_ITERS is expanded by run_regression_testcases_v2.sh.
+2K performance run parameters for coremark.|count=2
+CoreMark Size    : 666|count=2
+Iterations       : 2000|count=2
+seedcrc          : 0xe9f5|count=2
+[0]crclist       : 0xe714|count=2
+[0]crcmatrix     : 0x1fd7|count=2
+[0]crcstate      : 0x8e3a|count=2
+[0]crcfinal      : 0x4983|count=2
+Correct operation validated.|count=2
+CoreMark 1.0 :|count=2
+ByeFromAjit|count=2

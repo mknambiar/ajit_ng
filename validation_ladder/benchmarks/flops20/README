@@ -1,0 +1,8 @@
+This program attempts to estimate your systems
+floating-point 'MFLOPS' rating for the FADD, FSUB, 
+FMUL, and FDIV operations based on specific 
+'instruction mixes'. See src/flops.c for more info.
+
+
+Latest run has been on ajit_sac_processor with
+alternate device addresses.

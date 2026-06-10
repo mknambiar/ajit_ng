@@ -1,0 +1,81 @@
+[New LWP 2523989]
+[New LWP 2523990]
+[New LWP 2523991]
+[New LWP 2523992]
+[New LWP 2523993]
+[New LWP 2523994]
+[New LWP 2523995]
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib64/libthread_db.so.1".
+0x00007f37fa4d8073 in gomp_team_barrier_wait_end () from /lib64/libgomp.so.1
+
+Thread 8 (Thread 0x7f37f638a700 (LWP 2523995) "sitar_sim"):
+#0  0x00007f37fa4d8073 in gomp_team_barrier_wait_end () from /lib64/libgomp.so.1
+#1  0x0000000000403b10 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:123
+#2  0x00007f37fa4d54be in gomp_thread_start () from /lib64/libgomp.so.1
+#3  0x00007f37f93991ca in start_thread () from /lib64/libpthread.so.0
+#4  0x00007f37f97ee8d3 in clone () from /lib64/libc.so.6
+
+Thread 7 (Thread 0x7f37f6b8b700 (LWP 2523994) "sitar_sim"):
+#0  0x00007f37fa4d8073 in gomp_team_barrier_wait_end () from /lib64/libgomp.so.1
+#1  0x0000000000403b10 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:123
+#2  0x00007f37fa4d54be in gomp_thread_start () from /lib64/libgomp.so.1
+#3  0x00007f37f93991ca in start_thread () from /lib64/libpthread.so.0
+#4  0x00007f37f97ee8d3 in clone () from /lib64/libc.so.6
+
+Thread 6 (Thread 0x7f37f738c700 (LWP 2523993) "sitar_sim"):
+#0  0x00007f37fa4d8073 in gomp_team_barrier_wait_end () from /lib64/libgomp.so.1
+#1  0x0000000000403b10 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:123
+#2  0x00007f37fa4d54be in gomp_thread_start () from /lib64/libgomp.so.1
+#3  0x00007f37f93991ca in start_thread () from /lib64/libpthread.so.0
+#4  0x00007f37f97ee8d3 in clone () from /lib64/libc.so.6
+
+Thread 5 (Thread 0x7f37f7b8d700 (LWP 2523992) "sitar_sim"):
+#0  0x00007f37fa4d8073 in gomp_team_barrier_wait_end () from /lib64/libgomp.so.1
+#1  0x0000000000403b10 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:123
+#2  0x00007f37fa4d54be in gomp_thread_start () from /lib64/libgomp.so.1
+#3  0x00007f37f93991ca in start_thread () from /lib64/libpthread.so.0
+#4  0x00007f37f97ee8d3 in clone () from /lib64/libc.so.6
+
+Thread 4 (Thread 0x7f37f838e700 (LWP 2523991) "sitar_sim"):
+#0  0x00007f37fa4d8073 in gomp_team_barrier_wait_end () from /lib64/libgomp.so.1
+#1  0x0000000000403b10 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:123
+#2  0x00007f37fa4d54be in gomp_thread_start () from /lib64/libgomp.so.1
+#3  0x00007f37f93991ca in start_thread () from /lib64/libpthread.so.0
+#4  0x00007f37f97ee8d3 in clone () from /lib64/libc.so.6
+
+Thread 3 (Thread 0x7f37f8b8f700 (LWP 2523990) "sitar_sim"):
+#0  0x00007f37fa4d8073 in gomp_team_barrier_wait_end () from /lib64/libgomp.so.1
+#1  0x0000000000403b10 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:123
+#2  0x00007f37fa4d54be in gomp_thread_start () from /lib64/libgomp.so.1
+#3  0x00007f37f93991ca in start_thread () from /lib64/libpthread.so.0
+#4  0x00007f37f97ee8d3 in clone () from /lib64/libc.so.6
+
+Thread 2 (Thread 0x7f37f9390700 (LWP 2523989) "sitar_sim"):
+#0  sitar::inport<64u>::pull (tok=warning: RTTI symbol not found for class 'sitar::token<64u>'
+..., this=0x2485810) at /home/Manoj/Documents/sitar-master/core/sitar_inport.h:37
+#1  sitar::pulldword (obj=0x2485810, value=0x7f37f938f9b8, sync=true) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/sitar_port_wrapper.cpp:99
+#2  0x0000000000415379 in shim_get_doubleword (addr=0) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_memory_shim.cpp:163
+#3  0x0000000000415978 in ajit_shim_accessMemU64 (rwbar=rwbar@entry=1 '\001', bmask=bmask@entry=255 '\377', addr=<optimized out>, wdata=wdata@entry=0, rdata=rdata@entry=0x7f37f938f9f8) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_memory_shim.cpp:273
+#4  0x0000000000416cef in sysMemBusRequest (core_id=<optimized out>, thread_id=thread_id@entry=0, request_type=request_type@entry=0 '\000', byte_mask=byte_mask@entry=255 '\377', addr=addr@entry=0, data64=data64@entry=0, rdata=0x7f37f938fb30) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/bridge_pipeless_stubs.c:29
+#5  0x000000000042b0ae in Mmu (ms=ms@entry=0x7f37f0020e00, thread_id=thread_id@entry=0, mmu_command=mmu_command@entry=3 '\003', request_type=<optimized out>, request_type@entry=0 '\000', asi=asi@entry=9 '\t', addr=addr@entry=0, byte_mask=255 '\377', write_data=0, mae=0x7f37f938fc17 "", cacheable=0x7f37f938fb26 "", acc=0x7f37f938fb2a "", read_data=0x7f37f938fb30, mmu_fsr=0x7f37f0035158, synonym_invalidate_word=0x7f37f938fb2c) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/ajit_thread_deps/src/Mmu.c:242
+#6  0x0000000000429a1f in cpuIcacheAccess (core_id=<optimized out>, cpu_id=0, context=0 '\000', ms=0x7f37f0020e00, icache=0x7f37f0021dc0, asi=<optimized out>, addr=0, request_type=<optimized out>, byte_mask=255 '\377', mae=0x7f37f938fc17 "", instr_pair=0x7f37f938fc18, mmu_fsr=0x7f37f0035158) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/ajit_thread_deps/src/Icache.c:107
+#7  0x000000000042ba1f in readInstructionPair (core_id=<optimized out>, cpu_id=<optimized out>, context=<optimized out>, ms=<optimized out>, icache=<optimized out>, asi=asi@entry=9 '\t', addr=0, mae=0x7f37f938fc17 "", ipair=0x7f37f938fc18, mmu_fsr=0x7f37f0035158) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/ajit_thread_deps/src/ThreadInterface.c:38
+#8  0x000000000041a9b0 in fetchInstruction (s=s@entry=0x7f37f0035140, addr_space=<optimized out>, addr=0, inst=inst@entry=0x7f37f0035154, mmu_fsr=mmu_fsr@entry=0x7f37f0035158) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/ajit_thread/src/AjitThread.c:942
+#9  0x000000000041bb50 in ajit_thread_step (thread_state=0x7f37f0035140) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/ajit_thread/src/AjitThread.c:377
+#10 0x0000000000415a70 in ajit_thread_bridge_step (id=0, sim_time=0) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_thread_bridge.cpp:148
+#11 0x0000000000415de9 in ajit_thread_bridge_step (sim_time=<optimized out>, id=<optimized out>) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_thread_bridge.cpp:77
+#12 ajit_thread_bridge_step_task (frame_ptr=<optimized out>) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_thread_bridge.cpp:159
+#13 ajit_thread_bridge_step_task (id=<optimized out>, sim_time=<optimized out>) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_thread_bridge.cpp:157
+#14 0x0000000000413b0a in sitar::TestBench::runBehavior (this=0x2485640, current_time=...) at /home/Manoj/Documents/sitar-master/core/sitar_time.h:45
+#15 0x0000000000403b06 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:121
+#16 0x00007f37fa4d54be in gomp_thread_start () from /lib64/libgomp.so.1
+#17 0x00007f37f93991ca in start_thread () from /lib64/libpthread.so.0
+#18 0x00007f37f97ee8d3 in clone () from /lib64/libc.so.6
+
+Thread 1 (Thread 0x7f37fa905c80 (LWP 2523987) "sitar_sim"):
+#0  0x00007f37fa4d8073 in gomp_team_barrier_wait_end () from /lib64/libgomp.so.1
+#1  0x0000000000403b10 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:123
+#2  0x00007f37fa4cb726 in GOMP_parallel () from /lib64/libgomp.so.1
+#3  0x00000000004035ab in main (argc=<optimized out>, argv=<optimized out>) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:104
+[Inferior 1 (process 2523987) detached]

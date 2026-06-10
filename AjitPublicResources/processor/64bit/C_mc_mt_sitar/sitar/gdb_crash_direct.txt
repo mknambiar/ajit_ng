@@ -1,0 +1,82 @@
+Reading symbols from ./sitar_sim...
+No symbol "debuginfod" in current context.
+Starting program: /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar/sitar_sim 2000
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib64/libthread_db.so.1".
+[New Thread 0x7ffff6a6b700 (LWP 2510441)]
+[New Thread 0x7ffff626a700 (LWP 2510442)]
+[New Thread 0x7ffff5a69700 (LWP 2510443)]
+[New Thread 0x7ffff5268700 (LWP 2510444)]
+[New Thread 0x7ffff4a67700 (LWP 2510445)]
+[New Thread 0x7ffff4266700 (LWP 2510446)]
+[New Thread 0x7ffff3a65700 (LWP 2510447)]
+BRIDGE: active thread slots=8
+BRIDGE: active thread slots=8
+BRIDGE: using init_pc=0x00000000
+BRIDGE: active thread slots=8
+BRIDGE: active thread slots=8
+Info: made icache number_of_lines=512, log_number_of_lines=9
+Info: made dcache number_of_lines=512, log_number_of_lines=9
+
+Thread 4 "sitar_sim" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7ffff5a69700 (LWP 2510443)]
+0x000000000041ddf5 in init_core (s=s@entry=0x7fffcc000dc0, core_id=core_id@entry=0, number_of_threads=number_of_threads@entry=2, isa_mode=isa_mode@entry=32, bp_table_size=bp_table_size@entry=16, icache_number_of_lines=icache_number_of_lines@entry=512, icache_associativity=1, dcache_number_of_lines=512, dcache_associativity=1, report_traps=0 '\000', init_pc=0) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/ajit_thread_deps/src/Core.c:78
+78			s->threads[I]->mmu_state = s->mmu_state;
+#0  0x000000000041ddf5 in init_core (s=s@entry=0x7fffcc000dc0, core_id=core_id@entry=0, number_of_threads=number_of_threads@entry=2, isa_mode=isa_mode@entry=32, bp_table_size=bp_table_size@entry=16, icache_number_of_lines=icache_number_of_lines@entry=512, icache_associativity=1, dcache_number_of_lines=512, dcache_associativity=1, report_traps=0 '\000', init_pc=0) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/ajit_thread_deps/src/Core.c:78
+#1  0x000000000041deec in makeCoreState (core_id=0, number_of_threads=2, isa_mode=32, bp_table_size=16, icache_number_of_lines=512, icache_associativity=1, dcache_number_of_lines=512, dcache_associativity=1, report_traps=0 '\000', init_pc=0) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/ajit_thread_deps/src/Core.c:111
+#2  0x0000000000415b14 in ajit_thread_bridge_step (id=3, sim_time=0) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_thread_bridge.cpp:103
+#3  0x0000000000415de9 in ajit_thread_bridge_step (sim_time=<optimized out>, id=<optimized out>) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_thread_bridge.cpp:77
+#4  ajit_thread_bridge_step_task (frame_ptr=<optimized out>) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_thread_bridge.cpp:159
+#5  ajit_thread_bridge_step_task (id=<optimized out>, sim_time=<optimized out>) at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/shim/ajit_thread_bridge.cpp:157
+#6  0x0000000000413b0a in sitar::TestBench::runBehavior (this=0x663270, current_time=...) at /home/Manoj/Documents/sitar-master/core/sitar_time.h:45
+#7  0x0000000000403b06 in main._omp_fn.0(void) () at /home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/sitar_default_main.cpp:121
+#8  0x00007ffff7bb04be in gomp_thread_start () from /lib64/libgomp.so.1
+#9  0x00007ffff6a741ca in start_thread () from /lib64/libpthread.so.0
+#10 0x00007ffff6ec98d3 in clone () from /lib64/libc.so.6
+rax            0x0                 0
+rbx            0x7fffcc000dc0      140736615943616
+rcx            0x0                 0
+rdx            0x7fffcc020e00      140736616074752
+rsi            0x4319f1            4397553
+rdi            0x7ffff5a68b20      140737314720544
+rbp            0x0                 0x0
+rsp            0x7ffff5a68b00      0x7ffff5a68b00
+r8             0x0                 0
+r9             0x0                 0
+r10            0x7ffff5a662f7      140737314710263
+r11            0x0                 0
+r12            0x1                 1
+r13            0x20                32
+r14            0x10                16
+r15            0x0                 0
+rip            0x41ddf5            0x41ddf5 <init_core+261>
+eflags         0x10202             [ IF RF ]
+cs             0x33                51
+ss             0x2b                43
+ds             0x0                 0
+es             0x0                 0
+fs             0x0                 0
+gs             0x0                 0
+Missing separate debuginfos, use: dnf debuginfo-install glibc-2.28-251.el8_10.13.x86_64 libgcc-8.5.0-23.el8_10.x86_64 libgomp-8.5.0-23.el8_10.x86_64 libstdc++-8.5.0-23.el8_10.x86_64
+A debugging session is active.
+
+	Inferior 1 [process 2510412] will be killed.
+
+Quit anyway? (y or n) 
+Please answer y or n.
+A debugging session is active.
+
+	Inferior 1 [process 2510412] will be killed.
+
+Quit anyway? (y or n) Quit
+(gdb) Quit
+(gdb) Quit
+(gdb) Quit
+(gdb) Quit
+(gdb) Quit
+(gdb) quit
+A debugging session is active.
+
+	Inferior 1 [process 2510412] will be killed.
+
+Quit anyway? (y or n) EOF [assumed Y]

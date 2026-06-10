@@ -1,0 +1,12 @@
+An implementation of context...
+	Right now, we have getcontext and
+	setcontext implemented.
+
+
+	Lots of interesting and twisted things
+	possible...
+
+	
+	However, this is a bit non-optimal
+	since the entire machine state is
+	saved

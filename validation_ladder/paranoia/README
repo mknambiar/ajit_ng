@@ -1,0 +1,20 @@
+Successful paranoia run.  
+
+The results of the run are here:
+paranoia_run.log
+
+Other notable files:
+
+check.c
+	small util for debug purposed.
+host/
+	to run on the X86 host for comparison.
+
+paranoia.c
+	paranoia source (edited to run bare-metal without signals).
+ref/
+	original paranoia  code and version without setjmp.
+
+
+NOTE: this example has been run on the ajit_sac_processor
+setup, with alternate device addresses..

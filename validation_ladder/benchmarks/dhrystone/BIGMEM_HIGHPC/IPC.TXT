@@ -1,0 +1,32 @@
+-------------------------------------------------------------
+with -O 3
+-------------------------------------------------------------
+    10 iterations number-of-instructions-executed = 78694
+    20 iterations number-of-instructions-executed = 80544
+
+	per-iteration = 185 
+			1.85 us
+
+	achieved        2.38 us
+			revised on final stretch, 2.30 us 
+
+	IPC =  		0.78
+			revised on final stretch to 0.8
+
+		DMIPS/MHz = 2.4
+			revised to 2.46 on final stretch.
+
+-------------------------------------------------------------
+with -O 2
+-------------------------------------------------------------
+    number-of-instructions-executed = 119561
+    number-of-instructions-executed = 122761
+
+	per-iteration 320
+			3.2 us
+
+	achieved 4.36 us
+
+	IPC = 0.73
+		
+		DMIPS/MHz = 1.3

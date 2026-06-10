@@ -1,0 +1,9 @@
+SOURCES = cswap.s
+
+VERSION = 64
+
+RESULTS = 
+g2=0x6
+g1=0x3
+g4=0x3
+g5=0x5

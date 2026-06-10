@@ -1,0 +1,93 @@
+# general
+build/
+bin/
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+!/ahir_release/**/*.so
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# log files
+*.log
+
+# vim
+*.swp
+
+# ajit build system related
+*.elf
+*.hex
+*.mmap*
+*.objdump
+*wtrace*
+*.vars
+
+# scons
+*.dblite
+
+# python related
+__pycache__/
+*.py[cod]
+*$py.class
+
+# scons ignores
+.sconsign.dblite
+# When configure fails, SCons outputs these
+config.log
+.sconf_temp
+
+#misc
+/run
+ajit_C_system_model
+
+# tests folder
+/tests/**/sparc-assembly
+/tests/**/sparc-obj
+
+#antlr builds
+/AjitPublicResources/tools/antlr3Cruntime/build/
+/AjitPublicResources/tools/antlr3Cruntime/libantlr3c-3.4/
+
+
+# Local helper scripts
+.local-bin/
+.codex*
+.codex-tmp/
+.codex*/tmp/
+build/
+*.o
+*.elf
+*.log
+*.run.err
+*_log.txt
+TOP*_log.txt
+main.results.sitar
+executed_command_log.txt

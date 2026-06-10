@@ -1,0 +1,13 @@
+This code has examples for all 64 bit string functions.
+
+
+	Functions are - 
+		a64strlen
+		a64strcmp
+		a64strcasecmp
+		a64strcpy
+		a64strcat
+		a64strncpy
+
+
+Config.yaml has the path for these libraries added in the BuildArgs section.

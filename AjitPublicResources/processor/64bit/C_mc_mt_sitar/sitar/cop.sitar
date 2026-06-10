@@ -1,0 +1,82 @@
+module TestBench
+
+	inport	data_in: width 64
+	inport	irq_level: width 8
+	outport active : width 1
+	outport	write : width 1
+	outport	addr_out	: width 32
+	outport	data_out : width 64
+	outport	byte_mask : width 8
+	outport	coh_fill_kind : width 8
+	outport	coh_fill_pa_line : width 32
+	outport	coh_fill_va_line : width 32
+	inport	coh_icache_inval : width 32
+	inport	coh_dcache_inval : width 32
+	
+	include $#include <inttypes.h>$
+	include $extern "C" {
+		extern bool extract_bracket_number(const char *src, int *out_num);
+		extern void ajit_memory_shim_set_ports(int id,
+						      void* act_port,
+						      void* wr_port,
+						      void* addr_port,
+						      void* data_in_port,
+						      void* data_out_port,
+						      void* bm_port,
+					      void* irq_port,
+					      void* coh_fill_kind_port,
+					      void* coh_fill_pa_line_port,
+					      void* coh_fill_va_line_port,
+					      void* coh_icache_inval_port,
+					      void* coh_dcache_inval_port);
+	}
+	$
+	include $#include "ajit_tb_driver.h"$
+
+	decl $AjitTbDriver* module;$
+	decl $int instance_number;$
+	decl $bool extract_success, state = false;$
+	decl $std::string lf;$
+
+behavior
+
+	do
+	$
+		if (!(state)) {
+			module = new AjitTbDriver;
+			
+			lf = hierarchicalId() + "_log.txt";
+
+			extract_success = extract_bracket_number(lf.c_str(), &instance_number);
+			if (!(extract_success)) 
+				log << "Instance Id of module not found." << endl;
+			else
+				log << "My Instance string was " << lf << " and I extracted " << instance_number << " as my id" << endl;
+			
+			module->id = instance_number;
+			module->owner_tid = -1;	
+			module->log = log;
+			ajit_memory_shim_set_ports(instance_number, &active, &write, &addr_out, &data_in, &data_out, &byte_mask, &irq_level,
+				&coh_fill_kind, &coh_fill_pa_line, &coh_fill_va_line, &coh_icache_inval, &coh_dcache_inval);
+			state = true;
+			
+			log << "TB: init shim ports active=" << &active << " write=" << &write << " addr=" << &addr_out << std::endl;
+		
+		}
+		
+		
+		
+		log << "Before running module for cycle " << current_time << endl;
+		
+		//setLogPrefix(current_time);
+		
+		module->run(current_time.toUint64());
+		
+		log << "After running module for cycle " << current_time << endl;
+	$;
+	wait(0,1);
+	
+	while(1) end do;
+end behavior
+
+end module

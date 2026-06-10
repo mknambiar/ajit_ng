@@ -1,0 +1,13 @@
+SOURCES = init.s multiple_interrupt_sources_regression.c
+
+INCLUDES =
+-C $AJIT_PROJECT_HOME/os/kernels/pico/src
+-C $AJIT_PROJECT_HOME/processor/C/validation/serial_and_IRC_validation/common_serial_routines/src
+-I $AJIT_PROJECT_HOME/os/kernels/pico/include
+-I $AJIT_PROJECT_HOME/processor/C/common/include
+-I $AJIT_PROJECT_HOME/processor/C/validation/serial_and_IRC_validation/common_serial_routines/include
+
+RESULTS =
+g5=0x1
+g6=0x1
+g7=0x71

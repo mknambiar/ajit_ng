@@ -1,0 +1,16 @@
+import os
+
+env = Environment(ENV = {'PATH' : os.environ['PATH']})
+COMPILATION_FLAGS = ' -g -DDEBUG_PRINT'
+
+
+env.Append(CPPPATH = "include/:./:")
+
+LIBS=['aes_block']
+LIBPATH=['./lib']
+
+# create a library for the cache :
+env.Library('./lib/libaes_block', Glob('src/*.c'), CCFLAGS=COMPILATION_FLAGS)
+env.Program ('./bin/test_aes', Glob('tests/test_aes.c'), CCFLAGS=COMPILATION_FLAGS, LIBS=LIBS, LIBPATH=LIBPATH);
+env.Program ('./bin/encrypt_memory_map', Glob('utils/encrypt_memory_map.c'), CCFLAGS=COMPILATION_FLAGS, LIBS=LIBS, LIBPATH=LIBPATH);
+env.Program ('./bin/decrypt_memory_map', Glob('utils/decrypt_memory_map.c'), CCFLAGS=COMPILATION_FLAGS, LIBS=LIBS, LIBPATH=LIBPATH);

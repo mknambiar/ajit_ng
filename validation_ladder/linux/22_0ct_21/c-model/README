@@ -1,0 +1,26 @@
+Verified Linux boot image bundle for SiTAR/C-model runs.
+
+Contents:
+- `boot_loader_plus_kernel.mmap`
+- `kernel/kernel_objdump.txt`
+
+Provenance:
+- source repository: `https://github.com/adhuliya/ajit-toolchain`
+- source branch: `ajit-linux`
+- source directory:
+  `os/Ajit_linux/linux_boot/testing_in_proress/22_0ct_21/c-model`
+
+Verification:
+- SHA-256 of `boot_loader_plus_kernel.mmap`:
+  `2bcc0ec62dbf3dac5d63c631effd10040442ffd3980e0b46e0de82ea978b78cf`
+- This hash matches the advisor-provided mmap extracted from:
+  `.codex-tmp/boot_loader_plus_kernel.mmap.tgz`
+
+Usage notes:
+- intended init PC: `0xf0000000`
+- matching Linux symbol file:
+  `kernel/kernel_objdump.txt`
+
+Notes:
+- The matching `vmlinux` also exists in the source tree under
+  `kernel/vmlinux`, but it is not copied here yet.

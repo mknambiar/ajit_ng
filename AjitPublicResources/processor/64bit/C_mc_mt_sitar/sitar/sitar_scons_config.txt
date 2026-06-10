@@ -1,0 +1,14 @@
+/home/Manoj/Documents/sitar-master/scripts/../
+sitar_sim
+../sitar_default_main.cpp
+True
+True
+-B /opt/rh/gcc-toolset-11/root/usr/bin -D SW -D SITAR_NUM_CORES=4 -D SITAR_NUMT=8 -DUSE_NEW_TLB -std=c++20 -O2 -Wall -Wextra -I../shim -I../ajit_thread/include -I../memory -I../aes_block/include -I../swizzler/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/common/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/cpu/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/cpu_interface/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/mmu/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/cache/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/monitorLogger/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/tlbs/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/rlut/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/bridge/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/debugger/hwServer/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/half_precision_float/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../../../../ahir_release/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../../../../ahir_release/functionLibrary/include -I/home/Manoj/Documents/ajit-toolchain-marshal/AjitPublicResources/processor/64bit/C_mc_mt_sitar/../C_multi_core_multi_thread/half_precision_float/aa2clib/include
+./Output
+../shim
+../ajit_thread/src
+../ajit_thread_deps/src
+../memory
+../aes_block/src
+../swizzler/src
+.

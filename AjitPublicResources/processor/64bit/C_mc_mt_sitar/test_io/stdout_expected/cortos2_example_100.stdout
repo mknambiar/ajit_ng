@@ -1,0 +1,23 @@
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 reserved lock
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 1
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 2
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 3
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 4
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 5
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 6
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 7
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 8
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 9
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 10
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 11
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 12
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 13
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 14
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 15
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 16
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 17
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 18
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 19
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): 101 done: 19
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 20
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): 001 done: 20

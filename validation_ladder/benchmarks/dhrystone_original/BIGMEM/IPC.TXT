@@ -1,0 +1,7 @@
+    10 iterations number-of-instructions-executed = 123900
+    20 iterations number-of-instructions-executed = 127425
+	
+	per iteration 353   3.53us/terations
+	achieved 4.9 us/iteration
+
+	IPC = 0.72

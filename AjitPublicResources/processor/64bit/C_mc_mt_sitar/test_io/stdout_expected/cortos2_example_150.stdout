@@ -1,0 +1,8 @@
+CoRTOS:LOG: TRACE: ../main.c:cortos_entry_func_001(): Hello from Sender!
+CoRTOS:LOG: TRACE: ../main.c:cortos_entry_func_101(): Hello from Receiver!
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): Sending 4 messages: sent 2.
+CoRTOS:LOG: TRACE: ../main.c:cortos_entry_func_101(): Hello from Receiver: hdr is set.
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): Sending 2 messages: sent 0.
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): Received 2 messages. Need 2 more.
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_001(): Sending 2 messages: sent 2.
+CoRTOS:LOG: DEBUG: ../main.c:cortos_entry_func_101(): Received 2 messages. Need 0 more.

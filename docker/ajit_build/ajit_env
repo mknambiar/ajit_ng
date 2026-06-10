@@ -1,0 +1,155 @@
+# Script to setup the Ajit Environment variables.
+# Source this script to setup necessary paths.
+
+# NOTE: This script depends on $AJIT_HOME env variable.
+#       AJIT_HOME is set to the root of git repository.
+#
+#       In docker images this file is appended to the
+#       ~/.bashrc file which helps source this file
+#       automatically on opening a bash shell.
+
+# ./AjitPublicResources/tools/antlr3Cruntime/build/lib/libantlr3c.so
+################################################################
+## START: SETUP_BASE_PATHS
+################################################################
+export AJIT_PROJECT_HOME=$AJIT_HOME/AjitPublicResources;
+export AJIT_AHIR_DIR="$AJIT_HOME/ahir_release";
+export AJIT_SHIM_DIR="$AJIT_HOME/ajit_shim";
+export AJIT_TOOLS_DIR="$AJIT_PROJECT_HOME/tools";
+export AJIT_SCRIPTS_DIR="$AJIT_TOOLS_DIR/scripts";
+export AJIT_UART_INTERFACE_DIR="$AJIT_PROJECT_HOME/processor/TestEnvironments/core_environment/uart_interface/"
+export AJIT_LOCAL="$AJIT_HOME/.local-bin"
+
+export AJIT_TESTS_DIR="$AJIT_HOME/tests";
+export AJIT_DEV_TREE_COMPILER_DIR="$AJIT_TOOLS_DIR/deviceTreeCompiler";
+
+export AJIT_CMODEL_DIR="$AJIT_PROJECT_HOME/processor/64bit/C_multi_core_multi_thread";
+export AJIT_CMODEL_BIN_DIR="$AJIT_CMODEL_DIR/testbench/bin";
+
+export AJIT_BUILD_DIR="$AJIT_HOME/build";
+export AJIT_DEBUG_MONITOR_DIR="$AJIT_TOOLS_DIR/ajit_debug_monitor"
+export AJIT_DEBUG_MONITOR_MT_DIR="$AJIT_TOOLS_DIR/ajit_debug_monitor_mt"
+
+# Active SPARC builds use the system-installed sparc64-linux-gnu toolchain
+# plus an external SPARC sysroot when available.
+export AJIT_SPARC_SYSROOT_BASE="${AJIT_SPARC_SYSROOT_BASE:-/home/Manoj/sparc64-sysroot/sparc64-multilib-linux-gnu/sysroot}";
+export AJIT_UCLIBC_DIR="$AJIT_SPARC_SYSROOT_BASE/usr";
+
+export AJIT_CORTOS_DIR="$AJIT_HOME/os/rtos/cortos";
+export AJIT_CORTOS2_DIR="$AJIT_HOME/os/rtos/cortos2";
+
+################################################################
+## END  : SETUP_BASE_PATHS
+################################################################
+
+
+################################################################
+## START: SOURCE_AHIR_RELEASE
+################################################################
+pushd $AJIT_AHIR_DIR &> /dev/null;
+source ./ahir_bashrc;
+popd &> /dev/null;
+################################################################
+## END  : SOURCE_AHIR_RELEASE
+################################################################
+
+
+################################################################
+## START: SET_PROGRAM_EXECUTABLE_PATHS
+################################################################
+# The Docker image is expected to provide sparc64-linux-gnu-* in PATH.
+# for: compileToSparc.py, pt_load_sections.py, ...
+export PATH=$AJIT_SCRIPTS_DIR:$PATH;
+# for: generateMemoryMap_Byte
+export PATH=$AJIT_TOOLS_DIR/misc/bin:$PATH;
+# for flash-image utils.
+export PATH=$AJIT_TOOLS_DIR/flash_image/bin:$PATH;
+# for: remapMemmap
+export PATH=$AJIT_TOOLS_DIR/genVmapAsm/bin:$PATH;
+# for: ajit_C_system_model
+export PATH=$AJIT_CMODEL_BIN_DIR:$PATH;
+# for: sourcing makeLinkerScript.py
+export PATH=$AJIT_TOOLS_DIR/linker:$PATH;
+# for: compiling Device Tree
+export PATH=$AJIT_DEV_TREE_COMPILER_DIR:$PATH;
+# for: building Device Tree Compiler
+export PATH=$AJIT_DEV_TREE_COMPILER_DIR/scripts:$PATH;
+# ajit_debug_monitor path
+export PATH=$AJIT_DEBUG_MONITOR_DIR/bin:$PATH
+# ajit_debug_monitor_mt path
+export PATH=$AJIT_DEBUG_MONITOR_MT_DIR/bin:$PATH
+# uart calibration..
+export PATH=$AJIT_UART_INTERFACE_DIR/bin:$PATH
+
+# to test ajit cortos: Author Anshuman Dhuliya
+#export PATH=/home/codeman/downloads-thinkpad/sparcv8-ajit-git/src/cortos:$PATH
+
+# ajit cortos path
+export PATH=$AJIT_CORTOS_DIR:$PATH
+export PATH=$AJIT_CORTOS2_DIR:$PATH
+
+# for git related and other local commands
+export PATH=$AJIT_LOCAL:$PATH
+#
+#
+# points to the C system model executable
+export AJIT_CMODEL="$AJIT_CMODEL_BIN_DIR/ajit_C_system_model";
+
+
+
+################################################################
+## END  : SET_PROGRAM_EXECUTABLE_PATHS
+################################################################
+
+
+################################################################
+## START: SET_LIBRARY_PATHS 
+################################################################
+# UCLIBC_LIB="$AJIT_UCLIBC_DIR/lib";
+export AJIT_UCLIBC_LIB_DIR="$AJIT_UCLIBC_DIR/lib";
+export AJIT_CMODEL_LIB_DIR="$AJIT_TOOLS_DIR/antlr3Cruntime/build/lib";
+export LD_LIBRARY_PATH=$AJIT_UCLIBC_LIB_DIR:$LD_LIBRARY_PATH;
+export LD_LIBRARY_PATH=$AJIT_CMODEL_LIB_DIR:$LD_LIBRARY_PATH;
+
+# device tree compiler
+export LD_LIBRARY_PATH=$AJIT_DEV_TREE_COMPILER_DIR:$LD_LIBRARY_PATH;
+export LD_LIBRARY_PATH=$AJIT_DEV_TREE_COMPILER_DIR/libfdt:$LD_LIBRARY_PATH;
+
+# set include paths
+# UCLIBC_INCLUDE="$AJIT_UCLIBC_DIR/include/c++/4.7.4/";
+export AJIT_UCLIBC_HEADERS_DIR="$AJIT_UCLIBC_DIR/include";
+
+# python paths
+export PYTHONPATH="$AJIT_TOOLS_DIR/pyelftools-0.25:$AJIT_TOOLS_DIR/scripts:$PYTHONPATH";
+
+################################################################
+## END  : SET_LIBRARY_PATHS 
+################################################################
+
+
+
+################################################################
+# START: OLD_PATHS
+################################################################
+export AJIT_TOOLS_RELEASE=$AJIT_TOOLS_DIR
+#AD export AJIT_C_REF_MODEL=$(pwd)/c_reference_model
+export AJIT_C_REF_MODEL=$AJIT_CMODEL_DIR;
+export AJIT_PROJECT_CROSS_COMPILER=sparc64-linux-gnu
+
+export AJIT_UCLIBC_INSTALL_DIR=$AJIT_UCLIBC_LIB_DIR/..;
+export AJIT_LIBGCC_INSTALL_DIR=/usr/lib/gcc/sparc64-linux-gnu/12/32
+
+export AJIT_UCLIBC_HEADERS=$AJIT_UCLIBC_HEADERS_DIR;
+export AJIT_ACCESS_ROUTINES=$AJIT_TOOLS_DIR/ajit_access_routines;
+export AJIT_ACCESS_ROUTINES_MT=$AJIT_TOOLS_DIR/ajit_access_routines_mt;
+export AJIT_MINIMAL_PRINTF_TIMER=$AJIT_TOOLS_DIR/minimal_printf_timer; 
+export AJIT_FLASH_IMAGE_DIR=$AJIT_TOOLS_DIR/flash_image;
+
+export AJIT_AA_SIM_PATH=$AJIT_PROJECT_HOME/simulators/thread_64_aa2c
+
+export AJIT_AA_VALIDATION_EXECUTABLE_LOCATION=$AJIT_AA_SIM_PATH
+export AJIT_AA_VALIDATION_EXECUTABLE=ajit_thread_64_test
+
+################################################################
+# END  : OLD_PATHS
+################################################################

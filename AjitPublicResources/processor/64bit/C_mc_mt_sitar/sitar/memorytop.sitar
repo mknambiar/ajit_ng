@@ -1,0 +1,1213 @@
+module Top
+	parameter int numT=4;
+	submodule B : Bridge<32, 5, numT, true>
+	submodule L2 : L2Cache<true>
+	submodule M : Memory<32, 5, true>
+	submodule SP : ScratchPad<true>
+	submodule TIM : Timer<true>
+	submodule IRC : InterruptController<numT, true>
+	submodule STX : SerialTx<true>
+	submodule SRX : SerialRx<true>
+	submodule CIN : ConsoleInput<true>
+	submodule COUT : ConsoleOutput<true>
+	submodule_array T[numT] : TestBench
+	
+	net_array active[numT] : capacity 1 width 1
+	net_array write[numT] : capacity 1 width 1
+	net_array addr[numT] : capacity 1 width 32
+	net_array data_to_bridge[numT] : capacity 1 width 64
+	net_array data_from_bridge[numT] : capacity 1 width 64
+	net_array bm[numT] : capacity 1 width 8
+	net_array irl[numT] : capacity 1 width 8
+	net_array coh_fill_kind[numT] : capacity 1 width 8
+	net_array coh_fill_pa_line[numT] : capacity 1 width 32
+	net_array coh_fill_va_line[numT] : capacity 1 width 32
+	net_array coh_icache_inval[numT] : capacity 64 width 32
+	net_array coh_dcache_inval[numT] : capacity 64 width 32
+
+	net bridge_to_mem_active : capacity 1 width 1
+	net bridge_to_mem_write : capacity 1 width 1
+	net bridge_to_mem_addr : capacity 1 width 32
+	net bridge_to_mem_data : capacity 1 width 64
+	net bridge_to_mem_bm : capacity 1 width 8
+	net mem_to_bridge_data : capacity 1 width 64
+	net l2_to_mem_active : capacity 1 width 1
+	net l2_to_mem_write : capacity 1 width 1
+	net l2_to_mem_addr : capacity 1 width 32
+	net l2_to_mem_data : capacity 1 width 64
+	net l2_to_mem_bm : capacity 1 width 8
+	net mem_to_l2_data : capacity 1 width 64
+
+	net bridge_to_sp_request : capacity 1 width 64
+	net sp_to_bridge_response : capacity 1 width 32
+	net bridge_to_tim_request : capacity 1 width 64
+	net tim_to_bridge_response : capacity 1 width 32
+	net bridge_to_irc_request : capacity 1 width 64
+	net irc_to_bridge_response : capacity 1 width 32
+	net bridge_to_stx_request : capacity 1 width 64
+	net stx_to_bridge_response : capacity 1 width 32
+	net bridge_to_srx_request : capacity 1 width 64
+	net srx_to_bridge_response : capacity 1 width 32
+
+	net timer_irq : capacity 1 width 8
+	net serial_rx_irq : capacity 1 width 8
+	net serial_control_word : capacity 1 width 8
+	net serial_rx_full_status : capacity 1 width 8
+	net serial_tx_byte : capacity 1 width 8
+	net serial_tx_valid : capacity 1 width 8
+	net console_tx_ack : capacity 1 width 8
+	net console_rx_byte : capacity 1 width 8
+	net console_rx_valid : capacity 1 width 8
+	net serial_rx_ack : capacity 1 width 8
+
+	for i in 0 to (numT - 1)
+		T[i].active => active[i]
+		T[i].write => write[i]
+		T[i].addr_out => addr[i]
+		T[i].data_out => data_to_bridge[i]
+		T[i].byte_mask => bm[i]
+		T[i].irq_level <= irl[i]
+		T[i].data_in <= data_from_bridge[i]
+		T[i].coh_fill_kind => coh_fill_kind[i]
+		T[i].coh_fill_pa_line => coh_fill_pa_line[i]
+		T[i].coh_fill_va_line => coh_fill_va_line[i]
+		T[i].coh_icache_inval <= coh_icache_inval[i]
+		T[i].coh_dcache_inval <= coh_dcache_inval[i]
+
+		B.active[i] <= active[i]
+		B.write[i] <= write[i]
+		B.addr_in[i] <= addr[i]
+		B.data_in[i] <= data_to_bridge[i]
+		B.byte_mask[i] <= bm[i]
+		B.data_out[i] => data_from_bridge[i]
+		B.coh_fill_kind[i] <= coh_fill_kind[i]
+		B.coh_fill_pa_line[i] <= coh_fill_pa_line[i]
+		B.coh_fill_va_line[i] <= coh_fill_va_line[i]
+		B.coh_icache_inval[i] => coh_icache_inval[i]
+		B.coh_dcache_inval[i] => coh_dcache_inval[i]
+
+		IRC.thread_irl[i] => irl[i]
+	end for
+
+	B.mem_active => bridge_to_mem_active
+	B.mem_write => bridge_to_mem_write
+	B.mem_addr_out => bridge_to_mem_addr
+	B.mem_data_out => bridge_to_mem_data
+	B.mem_byte_mask => bridge_to_mem_bm
+	B.mem_data_in <= mem_to_bridge_data
+
+	B.sp_request => bridge_to_sp_request
+	B.sp_response <= sp_to_bridge_response
+	B.timer_request => bridge_to_tim_request
+	B.timer_response <= tim_to_bridge_response
+	B.irc_request => bridge_to_irc_request
+	B.irc_response <= irc_to_bridge_response
+	B.serial_tx_request => bridge_to_stx_request
+	B.serial_tx_response <= stx_to_bridge_response
+	B.serial_rx_request => bridge_to_srx_request
+	B.serial_rx_response <= srx_to_bridge_response
+
+	L2.active <= bridge_to_mem_active
+	L2.write <= bridge_to_mem_write
+	L2.addr_in <= bridge_to_mem_addr
+	L2.data_in <= bridge_to_mem_data
+	L2.byte_mask <= bridge_to_mem_bm
+	L2.data_out => mem_to_bridge_data
+	L2.mem_active => l2_to_mem_active
+	L2.mem_write => l2_to_mem_write
+	L2.mem_addr_out => l2_to_mem_addr
+	L2.mem_data_out => l2_to_mem_data
+	L2.mem_byte_mask => l2_to_mem_bm
+	L2.mem_data_in <= mem_to_l2_data
+
+	M.active <= l2_to_mem_active
+	M.write <= l2_to_mem_write
+	M.addr_in <= l2_to_mem_addr
+	M.data_in <= l2_to_mem_data
+	M.byte_mask <= l2_to_mem_bm
+	M.data_out => mem_to_l2_data
+
+	SP.request <= bridge_to_sp_request
+	SP.response => sp_to_bridge_response
+
+	TIM.request <= bridge_to_tim_request
+	TIM.response => tim_to_bridge_response
+	TIM.irq_level => timer_irq
+
+	IRC.request <= bridge_to_irc_request
+	IRC.response => irc_to_bridge_response
+	IRC.timer_irq_level <= timer_irq
+	IRC.serial_rx_irq_level <= serial_rx_irq
+
+	STX.request <= bridge_to_stx_request
+	STX.response => stx_to_bridge_response
+	STX.control_word => serial_control_word
+	STX.rx_full_status <= serial_rx_full_status
+	STX.console_tx_data => serial_tx_byte
+	STX.console_tx_valid => serial_tx_valid
+	STX.console_tx_ack <= console_tx_ack
+
+	SRX.request <= bridge_to_srx_request
+	SRX.response => srx_to_bridge_response
+	SRX.irq_level => serial_rx_irq
+	SRX.control_word <= serial_control_word
+	SRX.rx_full_status => serial_rx_full_status
+	SRX.console_rx_data <= console_rx_byte
+	SRX.console_rx_valid <= console_rx_valid
+	SRX.console_rx_ack => serial_rx_ack
+
+	CIN.console_rx_data => console_rx_byte
+	CIN.console_rx_valid => console_rx_valid
+	CIN.console_rx_ack <= serial_rx_ack
+	CIN.control_word <= serial_control_word
+
+	COUT.console_tx_data <= serial_tx_byte
+	COUT.console_tx_valid <= serial_tx_valid
+	COUT.console_tx_ack => console_tx_ack
+    
+end module
+
+module Bridge
+	parameter int size = 32
+	parameter int DELAY = 0
+	parameter int PORTS = 4
+	parameter bool trace = false
+	inport_array	active[PORTS] : width 1
+	inport_array	write[PORTS] : width 1
+	inport_array	addr_in[PORTS]	: width 32
+	inport_array	data_in[PORTS] : width 64
+	inport_array	byte_mask[PORTS] : width 8
+	outport_array	data_out[PORTS]: width 64
+	inport_array	coh_fill_kind[PORTS] : width 8
+	inport_array	coh_fill_pa_line[PORTS] : width 32
+	inport_array	coh_fill_va_line[PORTS] : width 32
+	outport_array	coh_icache_inval[PORTS] : width 32
+	outport_array	coh_dcache_inval[PORTS] : width 32
+	outport	mem_active : width 1
+	outport	mem_write : width 1
+	outport	mem_addr_out : width 32
+	outport	mem_data_out : width 64
+	outport	mem_byte_mask : width 8
+	inport	mem_data_in : width 64
+	outport	sp_request : width 64
+	inport	sp_response : width 32
+	outport	timer_request : width 64
+	inport	timer_response : width 32
+	outport	irc_request : width 64
+	inport	irc_response : width 32
+	outport	serial_tx_request : width 64
+	inport	serial_tx_response : width 32
+	outport	serial_rx_request : width 64
+	inport	serial_rx_response : width 32
+	include $#include "string.h"$
+	include $extern "C" {
+		#include "bridge_module_helpers.h"
+		#include "Ancillary.h"
+	}
+	$
+
+	decl $bool done_pull; bool done_push; bool selected_valid; bool port_ready;$
+	decl $bool write_state[PORTS]; bool ready_state[PORTS]; bool write_val;$
+	decl $uint8_t bmask_state[PORTS]; uint8_t req_stage[PORTS]; uint8_t issue_stage; uint8_t resp_stage;$
+	decl $uint8_t coh_fill_stage[PORTS]; uint8_t coh_emit_core; uint8_t coh_emit_kind;$
+	decl $uint8_t coh_kind_state[PORTS]; uint32_t coh_pa_state[PORTS]; uint32_t coh_va_state[PORTS];$
+	decl $uint32_t addr_state[PORTS]; uint32_t req_addr; uint32_t low_resp32; uint32_t high_resp32; uint32_t periph_wdata;$
+	decl $uint64_t data_state[PORTS]; uint64_t req_data; uint64_t resp_data;$
+	decl $uint8_t rr_start = 0; uint8_t probe_count; uint8_t current_port; uint8_t selected_port; uint8_t low_bm; uint8_t high_bm; uint8_t periph_bm; uint8_t target_kind;$
+
+behavior
+	$
+	for (int i = 0; i < PORTS; ++i) {
+		req_stage[i] = 0;
+		ready_state[i] = false;
+		write_state[i] = false;
+		addr_state[i] = 0;
+		data_state[i] = 0;
+		bmask_state[i] = 0xff;
+		coh_fill_stage[i] = 0;
+		coh_kind_state[i] = 0;
+		coh_pa_state[i] = 0;
+		coh_va_state[i] = 0;
+	}
+	$;
+	do
+		wait until (this_phase==0);
+		$for (int coh_i = 0; coh_i < PORTS; ++coh_i) {
+			bridge_poll_coherence_fill_step(&coh_fill_stage[coh_i],
+				(uint8_t) coh_i,
+				&coh_kind_state[coh_i],
+				&coh_pa_state[coh_i],
+				&coh_va_state[coh_i],
+				&coh_fill_kind[coh_i],
+				&coh_fill_pa_line[coh_i],
+				&coh_fill_va_line[coh_i]);
+		}$;
+
+		$probe_count = 0; selected_valid = false; selected_port = rr_start;$;
+		do
+			$current_port = (uint8_t) ((rr_start + probe_count) % PORTS); port_ready = ready_state[current_port];$;
+			if(not port_ready) then
+				$done_pull = bridge_pull_cpu_request_step(&req_stage[current_port],
+					&write_state[current_port],
+					&addr_state[current_port],
+					&data_state[current_port],
+					&bmask_state[current_port],
+					&active[current_port],
+					&write[current_port],
+					&addr_in[current_port],
+					&data_in[current_port],
+					&byte_mask[current_port]);$;
+				if(done_pull) then
+					$ready_state[current_port] = true;$;
+				end if;
+			end if;
+			$port_ready = ready_state[current_port];$;
+			if((not selected_valid) and port_ready) then
+				$selected_valid = true; selected_port = current_port;$;
+			else
+				$probe_count = probe_count + 1;$;
+			end if;
+		while((probe_count < PORTS) and (not selected_valid)) end do;
+
+		if(not selected_valid) then
+			wait
+		else
+			$write_val = write_state[selected_port];
+			req_addr = addr_state[selected_port];
+			req_data = data_state[selected_port];
+			target_kind = bridge_decode_target(req_addr);
+			low_bm = bmask_state[selected_port] & 0x0f;
+			high_bm = (uint8_t) ((bmask_state[selected_port] >> 4) & 0x0f);$;
+
+			if(target_kind == BRIDGE_TARGET_MEMORY) then
+				$issue_stage = 0;$;
+				if (write_val) then
+					do
+						wait until (this_phase==1);
+						$done_push = bridge_issue_mem_write_step(&issue_stage,
+							&mem_active,
+							&mem_write,
+							&mem_addr_out,
+							&mem_data_out,
+							&mem_byte_mask,
+							req_addr,
+							req_data,
+							bmask_state[selected_port]);$;
+						if(not done_push) then wait end if;
+					while(not done_push) end do;
+				else
+					do
+						wait until (this_phase==1);
+						$done_push = bridge_issue_mem_read_step(&issue_stage,
+							&mem_active,
+							&mem_write,
+							&mem_addr_out,
+							req_addr);$;
+						if(not done_push) then wait end if;
+					while(not done_push) end do;
+				end if;
+
+				do
+					wait until (this_phase==0);
+					$done_pull = bridge_collect_mem_response(&mem_data_in, &resp_data);$;
+					if(not done_pull) then wait end if;
+				while(not done_pull) end do;
+
+				if(not write_val) then
+					$bridge_snoop_filter_note_memory_read(selected_port, (req_addr >> 6));$;
+				end if;
+
+				if(write_val) then
+					$coh_emit_core = 0; coh_emit_kind = 0;$;
+					do
+						wait until (this_phase==1);
+						$done_push = bridge_emit_coherence_invalidate_step(&coh_emit_core,
+							&coh_emit_kind,
+							selected_port,
+							(req_addr >> 6),
+							PORTS,
+							&coh_icache_inval[coh_emit_core],
+							&coh_dcache_inval[coh_emit_core]);$;
+						if(not done_push) then wait end if;
+					while(not done_push) end do;
+				end if;
+			else
+				if(write_val) then
+					$issue_stage = 0;
+					if((req_addr & 0x4) == 0) {
+						periph_wdata = (uint32_t) ((req_data >> 32) & 0xffffffffULL);
+						periph_bm = high_bm;
+					} else {
+						periph_wdata = (uint32_t) (req_data & 0xffffffffULL);
+						periph_bm = low_bm;
+					}$;
+					do
+						wait until (this_phase==1);
+						$done_push = bridge_issue_target_access_step(&issue_stage,
+							target_kind,
+							&sp_request,
+							&timer_request,
+							&irc_request,
+							&serial_tx_request,
+							&serial_rx_request,
+							false,
+							periph_bm,
+							req_addr,
+							periph_wdata);$;
+						if(not done_push) then wait end if;
+					while(not done_push) end do;
+					do
+						wait until (this_phase==0);
+						$done_pull = bridge_collect_target_response(target_kind,
+							&sp_response,
+							&timer_response,
+							&irc_response,
+							&serial_tx_response,
+							&serial_rx_response,
+							&low_resp32);$;
+						if(not done_pull) then wait end if;
+					while(not done_pull) end do;
+					$resp_data = req_data;$;
+				else
+					$issue_stage = 0;$;
+					do
+						wait until (this_phase==1);
+						$done_push = bridge_issue_target_access_step(&issue_stage,
+							target_kind,
+							&sp_request,
+							&timer_request,
+							&irc_request,
+							&serial_tx_request,
+							&serial_rx_request,
+							true,
+							0x0f,
+							req_addr,
+							0);$;
+						if(not done_push) then wait end if;
+					while(not done_push) end do;
+					do
+						wait until (this_phase==0);
+						$done_pull = bridge_collect_target_response(target_kind,
+							&sp_response,
+							&timer_response,
+							&irc_response,
+							&serial_tx_response,
+							&serial_rx_response,
+							&low_resp32);$;
+						if(not done_pull) then wait end if;
+					while(not done_pull) end do;
+					$if((req_addr & 0x4) == 0) {
+						high_resp32 = low_resp32;
+						low_resp32 = 0;
+					} else {
+						high_resp32 = 0;
+					}
+					resp_data = (((uint64_t) high_resp32) << 32) | ((uint64_t) low_resp32);$;
+				end if;
+			end if;
+
+			$resp_stage = 0;$;
+			do
+				wait until (this_phase==1);
+				$done_push = bridge_send_cpu_response_step(&resp_stage, &data_out[selected_port], resp_data);$;
+				if(not done_push) then wait end if;
+			while(not done_push) end do;
+
+			$ready_state[selected_port] = false;
+			req_stage[selected_port] = 0;
+			write_state[selected_port] = false;
+			addr_state[selected_port] = 0;
+			data_state[selected_port] = 0;
+			bmask_state[selected_port] = 0xff;
+			rr_start = (uint8_t) ((selected_port + 1) % PORTS);$;
+		end if;
+	while(1) end do;
+end behavior
+end module
+
+module L2Cache
+	parameter bool trace = false
+	inport	active : width 1
+	inport	write : width 1
+	inport	addr_in	: width 32
+	inport	data_in : width 64
+	inport	byte_mask : width 8
+	outport	data_out: width 64
+	outport	mem_active : width 1
+	outport	mem_write : width 1
+	outport	mem_addr_out : width 32
+	outport	mem_data_out : width 64
+	outport	mem_byte_mask : width 8
+	inport	mem_data_in : width 64
+	include $extern "C" {
+		#include "bridge_module_helpers.h"
+	}
+	#include <cstdlib>
+	#include <cstdio>
+	$
+
+	decl $uint64_t read_data; bool done_pull; bool done_push; bool write_val;$
+	decl $uint32_t mem_addr;$
+	decl $uint64_t data; uint8_t req_stage; uint8_t l2_stage; uint8_t resp_stage;$
+	decl $uint8_t bmask;$
+
+behavior
+	$
+	req_stage = 0;
+	l2_stage = 0;
+	bmask = 0xff;
+	$;
+	do
+		wait until (this_phase==0);
+		$done_pull = memory_pull_request_step(&req_stage,
+			&write_val,
+			&mem_addr,
+			&data,
+			&bmask,
+			&active,
+			&write,
+			&addr_in,
+			&data_in,
+			&byte_mask);$;
+		if(not done_pull) then
+			wait
+		else
+			$l2_stage = 0;$;
+			do
+				if(this_phase==0) then
+					$done_push = l2_cache_access_step(&l2_stage,
+						0,
+						write_val,
+						bmask,
+						mem_addr,
+						data,
+						&read_data,
+						&mem_active,
+						&mem_write,
+						&mem_addr_out,
+						&mem_data_out,
+						&mem_byte_mask,
+						&mem_data_in);$;
+				else
+					$done_push = l2_cache_access_step(&l2_stage,
+						1,
+						write_val,
+						bmask,
+						mem_addr,
+						data,
+						&read_data,
+						&mem_active,
+						&mem_write,
+						&mem_addr_out,
+						&mem_data_out,
+						&mem_byte_mask,
+						&mem_data_in);$;
+				end if;
+				if(not done_push) then wait end if;
+			while(not done_push) end do;
+
+			$resp_stage = 0;$;
+			do
+				wait until (this_phase==1);
+				$done_push = memory_send_response_step(&resp_stage, &data_out, read_data);$;
+				if(not done_push) then wait end if;
+			while(not done_push) end do;
+
+			$req_stage = 0;
+			bmask = 0xff;$;
+		end if;
+	while(1) end do;
+
+end behavior
+end module
+
+module Memory
+	parameter int size = 32
+	parameter int DELAY = 0
+	parameter bool trace = false
+	inport	active : width 1
+	inport	write : width 1
+	inport	addr_in	: width 32
+	inport	data_in : width 64
+	inport	byte_mask : width 8
+	outport	data_out: width 64
+	include $#include <stdio.h>$
+	include $#include <stdlib.h>$
+	include $extern "C" {
+		#include "memory.h"
+		#include "bridge_module_helpers.h"
+		uint64_t getDoubleWordInMemory(uint32_t addr);
+		void setDoubleWordInMemory(uint32_t addr, uint64_t data, uint8_t bm);
+		int initializeMemory(char *); 
+		int allocateMemory(unsigned int log_memory_size);
+		int dumpMemoryToFile(char* memoryMapFile);
+		void setMemoryTraceFile(FILE* fp);
+	}
+	$
+	include $#include "string.h"$
+
+	decl $uint64_t read_data; bool done_pull; bool done_push; bool write_val;$
+	decl $uint32_t mem_addr;$
+	decl $uint64_t data; uint8_t req_stage; uint8_t resp_stage;$
+	decl $uint8_t bmask;$
+	decl $char ifilename[100],ofilename[100], tfilename[100]; uint8_t requests_handled=0;$
+	decl $unsigned int long mem_size; uint32_t effective_delay;$
+    
+behavior
+	$
+	mem_size = size;
+	allocateMemory(mem_size);
+	strcpy(ifilename, "../test_memmap_input_0.txt");
+	strcpy(ofilename, "test_memmap_output_0.txt");
+	strcpy(tfilename, "test_memmap_trace_0.txt");
+	initializeMemory(ifilename);
+	if (trace)
+		setMemoryTraceFile(fopen(tfilename, "w"));
+	log.turnON();
+	req_stage = 0;
+	bmask = 0xff;
+	effective_delay = (uint32_t) DELAY;
+	if(const char* delay_env = std::getenv("AJIT_MEMORY_DELAY")) {
+		char* delay_end = nullptr;
+		unsigned long parsed_delay = std::strtoul(delay_env, &delay_end, 0);
+		if(delay_end != delay_env) {
+			effective_delay = (uint32_t) parsed_delay;
+		}
+	}
+	$;
+	do
+		wait until (this_phase==0);
+		$done_pull = memory_pull_request_step(&req_stage,
+			&write_val,
+			&mem_addr,
+			&data,
+			&bmask,
+			&active,
+			&write,
+			&addr_in,
+			&data_in,
+			&byte_mask);$;
+		if(not done_pull) then
+			wait
+		else
+			if (not write_val) then
+				wait(effective_delay,0);
+				$read_data = getDoubleWordInMemory(mem_addr);$;
+			else
+				wait(effective_delay,0);
+				$setDoubleWordInMemory(mem_addr, data, bmask);$;
+				$read_data = data;$;
+			end if;
+
+			$resp_stage = 0;$;
+			do
+				wait until (this_phase==1);
+				$done_push = memory_send_response_step(&resp_stage, &data_out, read_data);$;
+				if(not done_push) then wait end if;
+			while(not done_push) end do;
+
+			$requests_handled++;
+			req_stage = 0;
+			bmask = 0xff;$;
+		end if;
+	while(1) end do;
+
+end behavior
+end module
+
+module ScratchPad
+	parameter bool trace = false
+	inport	request : width 64
+	outport	response : width 32
+	include $extern "C" {
+		#include "bridge_module_helpers.h"
+		#include "Ancillary.h"
+	}
+	$
+
+	decl $uint32_t scratch_pad_memory[32]; uint32_t data_out; uint32_t addr; uint32_t data_in;$
+	decl $bool done_pull; bool done_push; bool rwbar;$
+	decl $uint8_t stage; uint8_t resp_stage; uint8_t byte_mask;$
+
+behavior
+	$
+	for (int i = 0; i < 32; ++i) {
+		scratch_pad_memory[i] = 0;
+	}
+	stage = 0;
+	$;
+	do
+		wait until (this_phase==0);
+		$done_pull = peripheral_pull_request_step(&stage,
+			&rwbar,
+			&byte_mask,
+			&addr,
+			&data_in,
+			&request);$;
+		if(not done_pull) then
+			wait
+		else
+			if(rwbar) then
+				$data_out = scratch_pad_memory[(addr & 0x7f) >> 2];$;
+			else
+				$scratch_pad_memory[(addr & 0x7f) >> 2] = bridge_insert_using_byte_mask32(scratch_pad_memory[(addr & 0x7f) >> 2], data_in, byte_mask);
+				data_out = scratch_pad_memory[(addr & 0x7f) >> 2];$;
+			end if;
+			$resp_stage = 0;$;
+			do
+				wait until (this_phase==1);
+				$done_push = peripheral_send_response_step(&resp_stage, &response, data_out);$;
+				if(not done_push) then wait end if;
+			while(not done_push) end do;
+			$stage = 0;$;
+		end if;
+	while(1) end do;
+end behavior
+end module
+
+module Timer
+	parameter bool trace = false
+	inport request : width 64
+	outport response : width 32
+	outport irq_level : width 8
+	include $extern "C" {
+		#include "bridge_module_helpers.h"
+	}
+	#include <cstdlib>
+	#include <cstdio>
+	$
+
+	decl $uint32_t control_register; uint32_t timer_count; uint32_t timer_max_count; uint32_t data_out; uint32_t addr; uint32_t data_in; uint32_t next_value;$
+	decl $uint32_t timer_tick_div; uint32_t timer_tick_phase;$
+	decl $bool done_pull; bool done_push; bool rwbar; bool response_pending;$
+	decl $uint8_t stage; uint8_t resp_stage; uint8_t byte_mask; uint8_t irq_value; uint8_t timer_state;$
+behavior
+	$
+	control_register = 0;
+	timer_count = 0;
+	timer_max_count = 0;
+	timer_tick_div = 10000000u;
+	timer_tick_phase = 0;
+	irq_value = 0;
+	timer_state = 0;
+	stage = 0;
+	resp_stage = 0;
+	response_pending = false;
+	if(const char* tick_div_env = std::getenv("AJIT_TIMER_TICK_DIV")) {
+		unsigned long parsed = std::strtoul(tick_div_env, NULL, 0);
+		if(parsed != 0ul) {
+			timer_tick_div = (uint32_t) parsed;
+		}
+	}
+	$;
+	do
+		if(this_phase==0) then
+			if(timer_state == 1) then
+				$timer_tick_phase = timer_tick_phase + 1;
+				if(timer_tick_phase >= timer_tick_div) {
+					timer_tick_phase = 0;
+					timer_count = timer_count + 1;
+					if((timer_max_count != 0) && (timer_count >= timer_max_count)) {
+						timer_state = 2;
+						irq_value = 10;
+					}
+				}
+				$;
+			end if;
+			if(not response_pending) then
+				$done_pull = peripheral_pull_request_step(&stage,
+					&rwbar,
+					&byte_mask,
+					&addr,
+					&data_in,
+					&request);$;
+				if(done_pull) then
+					if(rwbar) then
+						$data_out = control_register;$;
+					else
+						$next_value = bridge_insert_using_byte_mask32(control_register, data_in, byte_mask);
+						control_register = next_value;
+						if((control_register & 0x1) == 0) {
+							timer_state = 0;
+							irq_value = 0;
+							timer_count = 0;
+							timer_max_count = 0;
+							timer_tick_phase = 0;
+						} else if(timer_state == 0) {
+							timer_state = 1;
+							irq_value = 0;
+							timer_count = 0;
+							timer_max_count = (control_register >> 1);
+							timer_tick_phase = 0;
+						} else if(timer_state == 1) {
+							timer_max_count = (control_register >> 1);
+						}
+						data_out = 0;
+					$;
+					end if;
+					$response_pending = true; resp_stage = 0; stage = 0;$;
+				end if;
+			end if;
+		else
+			$done_push = signal_push_u8(&irq_level, irq_value);$;
+			if(response_pending) then
+				$done_push = peripheral_send_response_step(&resp_stage, &response, data_out);$;
+				if(done_push) then
+					$response_pending = false;$;
+				end if;
+			end if;
+		end if;
+		wait(0,1);
+	while(1) end do;
+end behavior
+end module
+
+module InterruptController
+	parameter int numT = 4
+	parameter bool trace = false
+	inport request : width 64
+	outport response : width 32
+	inport timer_irq_level : width 8
+	inport serial_rx_irq_level : width 8
+	outport_array thread_irl[numT] : width 8
+	include $extern "C" {
+		#include "bridge_module_helpers.h"
+	}
+	$
+
+	decl $uint32_t control_register[numT]; uint32_t data_out; uint32_t addr; uint32_t data_in;$
+	decl $bool done_pull; bool done_push; bool rwbar; bool response_pending;$
+	decl $uint8_t stage; uint8_t resp_stage; uint8_t byte_mask; uint8_t timer_irq; uint8_t serial_irq; uint8_t thread_level[numT]; uint32_t reg_index; uint16_t irq_enable_mask;$
+behavior
+	$
+	for (int i = 0; i < numT; ++i) {
+		control_register[i] = 0;
+		thread_level[i] = 0;
+	}
+	stage = 0;
+	resp_stage = 0;
+	response_pending = false;
+	timer_irq = 0;
+	serial_irq = 0;
+	$;
+	do
+		if(this_phase==0) then
+			$signal_pull_u8(&timer_irq_level, &timer_irq);
+			signal_pull_u8(&serial_rx_irq_level, &serial_irq);
+			for (int i = 0; i < numT; ++i) {
+				thread_level[i] = 0;
+				if(control_register[i] & 0x1) {
+					irq_enable_mask = (uint16_t) ((control_register[i] >> 1) & 0x7fffu);
+					if(irq_enable_mask == 0) {
+						// Legacy single-thread tests only write bit 0 to enable the IRC.
+						// Treat that as "all sources enabled" for compatibility.
+						irq_enable_mask = 0x7fffu;
+					}
+					if((timer_irq != 0) && ((irq_enable_mask >> (10 - 1)) & 0x1)) {
+						thread_level[i] = timer_irq;
+					} else if((serial_irq != 0) && ((irq_enable_mask >> (12 - 1)) & 0x1)) {
+						thread_level[i] = serial_irq;
+					}
+				}
+			}
+			$;
+			if(not response_pending) then
+				$done_pull = peripheral_pull_request_step(&stage,
+					&rwbar,
+					&byte_mask,
+					&addr,
+					&data_in,
+					&request);$;
+				if(done_pull) then
+					$reg_index = ((addr - 0xFFFF3000) >> 2);
+					if(reg_index >= (uint32_t) numT) reg_index = 0;$;
+					if(rwbar) then
+						$data_out = control_register[reg_index];$;
+					else
+						$control_register[reg_index] = bridge_insert_using_byte_mask32(control_register[reg_index], data_in, byte_mask);
+						data_out = control_register[reg_index];$;
+					end if;
+					$response_pending = true; resp_stage = 0; stage = 0;$;
+				end if;
+			end if;
+		else
+			$for (int i = 0; i < numT; ++i) signal_push_u8(&thread_irl[i], thread_level[i]);$;
+			if(response_pending) then
+				$done_push = peripheral_send_response_step(&resp_stage, &response, data_out);$;
+				if(done_push) then
+					$response_pending = false;$;
+				end if;
+			end if;
+		end if;
+		wait(0,1);
+	while(1) end do;
+end behavior
+end module
+
+module SerialTx
+	parameter bool trace = false
+	inport request : width 64
+	outport response : width 32
+	outport control_word : width 8
+	inport rx_full_status : width 8
+	outport console_tx_data : width 8
+	outport console_tx_valid : width 8
+	inport console_tx_ack : width 8
+	include $extern "C" {
+		#include "bridge_module_helpers.h"
+	}
+	$
+
+	decl $uint32_t control_register; uint32_t tx_register; uint32_t data_out; uint32_t addr; uint32_t data_in;$
+	decl $bool done_pull; bool done_push; bool rwbar; bool response_pending; bool data_reg_selected; bool tx_pending;$
+	decl $uint8_t stage; uint8_t resp_stage; uint8_t byte_mask; uint8_t reg_offset; uint8_t rx_full; uint8_t tx_ack; uint8_t control_value; uint8_t tx_valid; uint8_t tx_byte; uint8_t tx_data_byte;$
+
+behavior
+	$
+	control_register = 0;
+	tx_register = 0;
+	tx_data_byte = 0;
+	stage = 0;
+	resp_stage = 0;
+	response_pending = false;
+	tx_pending = false;
+	$;
+	do
+		if(this_phase==0) then
+			$tx_ack = 0;
+			{
+				uint8_t next_u8 = 0;
+				if(signal_pull_u8(&rx_full_status, &next_u8)) {
+					rx_full = next_u8;
+				}
+				if(signal_pull_u8(&console_tx_ack, &next_u8)) {
+					tx_ack = next_u8;
+				}
+			}
+			if(tx_pending && tx_ack) {
+				control_register = setBit32(control_register, 3, 0);
+				tx_pending = false;
+			}
+			$;
+			if(not response_pending) then
+				$done_pull = peripheral_pull_request_step(&stage,
+					&rwbar,
+					&byte_mask,
+					&addr,
+					&data_in,
+					&request);$;
+				if(done_pull) then
+					$reg_offset = (uint8_t) (addr & 0xffu);
+					// AJIT MT software writes TX data at 0x04; older validation serial
+					// routines use 0x10. Treat both offsets as the TX data register.
+					data_reg_selected = ((reg_offset == 0x04u) || (reg_offset == 0x10u));$;
+					if(rwbar) then
+						if(data_reg_selected) then
+							$data_out = tx_register;$;
+						else
+							$control_register = setBit32(control_register, 4, (rx_full != 0));
+							data_out = control_register;$;
+						end if;
+					else
+						if(data_reg_selected) then
+							$if(getBit32(control_register, 0) != 0) {
+								tx_register = bridge_insert_using_byte_mask32(tx_register, data_in, byte_mask);
+								if(byte_mask & 0x8u) {
+									tx_data_byte = (uint8_t) ((data_in >> 24) & 0xffu);
+								} else if(byte_mask & 0x4u) {
+									tx_data_byte = (uint8_t) ((data_in >> 16) & 0xffu);
+								} else if(byte_mask & 0x2u) {
+									tx_data_byte = (uint8_t) ((data_in >> 8) & 0xffu);
+								} else {
+									tx_data_byte = (uint8_t) (data_in & 0xffu);
+								}
+								control_register = setBit32(control_register, 3, 1);
+								tx_pending = true;
+							}
+							data_out = tx_register;$;
+						else
+							$uint32_t next_control = bridge_insert_using_byte_mask32(control_register, data_in, byte_mask);
+							control_register = setBit32(control_register, 0, getBit32(next_control, 0));
+							control_register = setBit32(control_register, 1, getBit32(next_control, 1));
+							control_register = setBit32(control_register, 2, getBit32(next_control, 2));
+							if(getBit32(control_register, 0) == 0) {
+								control_register = setBit32(control_register, 3, 0);
+								tx_pending = false;
+							}
+							control_register = setBit32(control_register, 4, (rx_full != 0));
+							data_out = control_register;$;
+						end if;
+					end if;
+					$response_pending = true; resp_stage = 0; stage = 0;$;
+				end if;
+			end if;
+		else
+			$control_value = (uint8_t) (control_register & 0x1fu);
+			tx_valid = tx_pending ? 1u : 0u;
+			tx_byte = tx_data_byte;
+			signal_push_u8(&control_word, control_value);
+			signal_push_u8(&console_tx_valid, tx_valid);
+			signal_push_u8(&console_tx_data, tx_byte);$;
+			if(response_pending) then
+				$done_push = peripheral_send_response_step(&resp_stage, &response, data_out);$;
+				if(done_push) then
+					$response_pending = false;$;
+				end if;
+			end if;
+		end if;
+		wait(0,1);
+	while(1) end do;
+end behavior
+end module
+
+module SerialRx
+	parameter bool trace = false
+	inport request : width 64
+	outport response : width 32
+	outport irq_level : width 8
+	inport control_word : width 8
+	outport rx_full_status : width 8
+	inport console_rx_data : width 8
+	inport console_rx_valid : width 8
+	outport console_rx_ack : width 8
+	include $extern "C" {
+		#include "bridge_module_helpers.h"
+	}
+	$
+
+	decl $uint32_t control_register; uint32_t rx_register; uint32_t data_out; uint32_t addr; uint32_t data_in;$
+	decl $bool done_pull; bool done_push; bool rwbar; bool response_pending; bool data_reg_selected;$
+	decl $uint8_t stage; uint8_t resp_stage; uint8_t byte_mask; uint8_t irq_value; uint8_t reg_offset; uint8_t control_value; uint8_t input_byte; uint8_t input_valid; uint8_t ack_value; uint8_t rx_full_value;$
+
+behavior
+	$
+	control_register = 0;
+	rx_register = 0;
+	irq_value = 0;
+	stage = 0;
+	resp_stage = 0;
+	response_pending = false;
+	$;
+	do
+		if(this_phase==0) then
+			${
+				uint8_t next_u8 = 0;
+				if(signal_pull_u8(&control_word, &next_u8)) {
+					control_value = next_u8;
+				}
+				if(signal_pull_u8(&console_rx_data, &next_u8)) {
+					input_byte = next_u8;
+				}
+				if(signal_pull_u8(&console_rx_valid, &next_u8)) {
+					input_valid = next_u8;
+				}
+			}
+			control_register = setBit32(control_register, 0, getBit32(control_value, 0));
+			control_register = setBit32(control_register, 1, getBit32(control_value, 1));
+			control_register = setBit32(control_register, 2, getBit32(control_value, 2));
+			ack_value = 0;
+			if(getBit32(control_register, 1) == 0) {
+				rx_register = 0;
+				control_register = setBit32(control_register, 4, 0);
+				irq_value = 0;
+			} else if((input_valid != 0) && (getBit32(control_register, 4) == 0)) {
+				rx_register = setSlice32(0, 7, 0, input_byte);
+				control_register = setBit32(control_register, 4, 1);
+				ack_value = 1;
+				if(getBit32(control_register, 2) != 0) {
+					irq_value = 12;
+				}
+			}
+			$;
+			if(not response_pending) then
+				$done_pull = peripheral_pull_request_step(&stage,
+					&rwbar,
+					&byte_mask,
+					&addr,
+					&data_in,
+					&request);$;
+				if(done_pull) then
+					$reg_offset = (uint8_t) (addr & 0xffu); data_reg_selected = (reg_offset == 0x20u);$;
+					if(rwbar) then
+						if(data_reg_selected) then
+							$if(byte_mask & 0x8u) {
+								data_out = setSlice32(0, 31, 24, getSlice32(rx_register, 7, 0));
+							} else if(byte_mask & 0x4u) {
+								data_out = setSlice32(0, 23, 16, getSlice32(rx_register, 7, 0));
+							} else if(byte_mask & 0x2u) {
+								data_out = setSlice32(0, 15, 8, getSlice32(rx_register, 7, 0));
+							} else {
+								data_out = setSlice32(0, 7, 0, getSlice32(rx_register, 7, 0));
+							}$;
+						else
+							$data_out = control_register;$;
+						end if;
+					else
+						if(data_reg_selected) then
+							$data_out = rx_register;$;
+						else
+							$control_register = bridge_insert_using_byte_mask32(control_register, data_in, byte_mask);
+							data_out = control_register;$;
+						end if;
+					end if;
+					$response_pending = true; resp_stage = 0; stage = 0;$;
+				end if;
+			end if;
+		else
+			$if(response_pending && (reg_offset == 0x20u) && rwbar) {
+				control_register = setBit32(control_register, 4, 0);
+				irq_value = 0;
+			}
+			rx_full_value = getBit32(control_register, 4) ? 1u : 0u;
+			signal_push_u8(&irq_level, irq_value);
+			signal_push_u8(&rx_full_status, rx_full_value);
+			signal_push_u8(&console_rx_ack, ack_value);$;
+			if(response_pending) then
+				$done_push = peripheral_send_response_step(&resp_stage, &response, data_out);$;
+				if(done_push) then
+					$response_pending = false;$;
+				end if;
+			end if;
+		end if;
+		wait(0,1);
+	while(1) end do;
+end behavior
+end module
+
+module ConsoleOutput
+	parameter bool trace = false
+	inport console_tx_data : width 8
+	inport console_tx_valid : width 8
+	outport console_tx_ack : width 8
+	include $extern "C" {
+		#include "ajit_memory_shim.h"
+		#include "bridge_module_helpers.h"
+	}
+	$
+
+	decl $uint8_t tx_data; uint8_t tx_valid; uint8_t ack_value; bool saw_valid;$
+
+behavior
+	$
+	tx_data = 0;
+	tx_valid = 0;
+	ack_value = 0;
+	saw_valid = false;
+	$;
+	do
+		if(this_phase==0) then
+			$signal_pull_u8(&console_tx_data, &tx_data);
+			signal_pull_u8(&console_tx_valid, &tx_valid);
+			if((tx_valid != 0) && !saw_valid) {
+				ajit_shim_console_write(tx_data);
+				ack_value = 1;
+				saw_valid = true;
+			} else if(tx_valid == 0) {
+				saw_valid = false;
+			}
+			$;
+		else
+			$signal_push_u8(&console_tx_ack, ack_value);
+			ack_value = 0;$;
+		end if;
+		wait(0,1);
+	while(1) end do;
+end behavior
+end module
+
+module ConsoleInput
+	parameter bool trace = false
+	outport console_rx_data : width 8
+	outport console_rx_valid : width 8
+	inport console_rx_ack : width 8
+	inport control_word : width 8
+	include $extern "C" {
+		#include <stdlib.h>
+		#include "ajit_memory_shim.h"
+		#include "bridge_module_helpers.h"
+	}
+	$
+
+	decl $uint8_t rx_data; uint8_t rx_valid; uint8_t rx_ack; uint8_t control_value; uint8_t input_paced; uint8_t input_prompt_paced; uint8_t first_byte_sent;$
+	decl $uint64_t output_count; uint64_t prompt_count; uint64_t last_release_output_count; uint64_t last_release_prompt_count; uint64_t last_seen_prompt_count; uint32_t prompt_release_delay; uint32_t prompt_delay_budget;$
+
+behavior
+	$
+	rx_data = 0;
+	rx_valid = 0;
+	rx_ack = 0;
+	control_value = 0;
+	input_paced = 0;
+	input_prompt_paced = 0;
+	first_byte_sent = 0;
+	output_count = 0;
+	prompt_count = 0;
+	last_release_output_count = 0;
+	last_release_prompt_count = 0;
+	last_seen_prompt_count = 0;
+	prompt_release_delay = 4096;
+	prompt_delay_budget = 0;
+	$;
+	do
+		if(this_phase==0) then
+			${
+				const char* paced_env = getenv("AJIT_CONSOLE_INPUT_PACED");
+				const char* prompt_delay_env = getenv("AJIT_CONSOLE_PROMPT_DELAY");
+				output_count = ajit_shim_console_output_count();
+				prompt_count = ajit_shim_console_prompt_count();
+				input_paced = ((paced_env != NULL) && (paced_env[0] != 0) && (paced_env[0] != '0')) ? 1 : 0;
+				input_prompt_paced = ((paced_env != NULL) && (strcmp(paced_env, "prompt") == 0)) ? 1 : 0;
+				if(prompt_delay_env != NULL && prompt_delay_env[0] != 0) {
+					char* endptr = NULL;
+					unsigned long parsed = strtoul(prompt_delay_env, &endptr, 0);
+					if(endptr != prompt_delay_env) {
+						prompt_release_delay = (uint32_t) parsed;
+					}
+				}
+				if(prompt_count != last_seen_prompt_count) {
+					last_seen_prompt_count = prompt_count;
+					prompt_delay_budget = input_prompt_paced ? prompt_release_delay : 0;
+				} else if(prompt_delay_budget > 0) {
+					prompt_delay_budget--;
+				}
+			}$;
+			$rx_ack = 0;
+			{
+				uint8_t next_u8 = 0;
+				if(signal_pull_u8(&console_rx_ack, &next_u8)) {
+					rx_ack = next_u8;
+				}
+				if(signal_pull_u8(&control_word, &next_u8)) {
+					control_value = next_u8;
+				}
+			}
+			if((rx_valid != 0) && (rx_ack != 0)) {
+				rx_valid = 0;
+			}
+			if((rx_valid == 0) && ((control_value & 0x2u) != 0)) {
+				if((input_paced == 0) ||
+				   (input_prompt_paced &&
+				    (prompt_count > last_release_prompt_count) &&
+				    (prompt_delay_budget == 0)) ||
+				   ((input_prompt_paced == 0) &&
+				    (((first_byte_sent == 0) && (output_count > 0)) ||
+				     ((first_byte_sent != 0) && (output_count > last_release_output_count))))) {
+					uint8_t next_byte = 0;
+					if(ajit_shim_console_try_read(&next_byte)) {
+						rx_data = next_byte;
+						rx_valid = 1;
+						first_byte_sent = 1;
+						last_release_output_count = output_count;
+						last_release_prompt_count = prompt_count;
+					}
+				}
+			}
+			$;
+		else
+			$signal_push_u8(&console_rx_data, rx_data);
+			signal_push_u8(&console_rx_valid, rx_valid);$;
+		end if;
+		wait(0,1);
+	while(1) end do;
+end behavior
+end module
