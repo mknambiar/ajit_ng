@@ -189,7 +189,7 @@ typedef struct _ThreadState
 	uint32_t init_pc; // post reset PC.
 	uint8_t ifetch_pending; // Sitar fetch state carry-over
 	uint32_t ifetch_addr;   // aligned fetch address for pending cycle
-	uint64_t sitar_sim_time; // current Sitar simulation time
+	uint64_t sitar_sim_time; // raw SiTAR scheduler tick; bit 0 is used as the port phase
 
 	ThreadMode mode;
 	uint32_t trap_vector;
