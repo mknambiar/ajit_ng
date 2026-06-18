@@ -68,9 +68,14 @@ uint64_t getCycleEstimate (ThreadState* s)
 
 static void updateSitarClockAsrs(ThreadState* s)
 {
-	uint64_t sim_time = s->sitar_sim_time;
-	s->status_reg.asr[30] = (uint32_t) (sim_time & 0xffffffffull);
-	s->status_reg.asr[31] = (uint32_t) ((sim_time >> 32) & 0xffffffffull);
+	uint64_t cpu_clock = (s->sitar_sim_time >> 1);
+	/*
+	 * The raw SiTAR scheduler tick has two port phases per Ajit CPU clock.
+	 * ASR30/31 mirror the phase-pair CPU clock; protocol code still uses
+	 * sitar_sim_time[0] as the raw phase.
+	 */
+	s->status_reg.asr[30] = (uint32_t) ((cpu_clock >> 32) & 0xffffffffull);
+	s->status_reg.asr[31] = (uint32_t) (cpu_clock & 0xffffffffull);
 }
 
 void  	printThreadStatistics (ThreadState* s)
