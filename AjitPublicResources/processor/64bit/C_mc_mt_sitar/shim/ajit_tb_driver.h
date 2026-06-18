@@ -49,6 +49,10 @@ struct AjitTbDriver : public CoroutineOwner {
 
   StepTask driver() {
     while (true) {
+      if ((sim_time & 0x1ull) != 0ull) {
+        co_await yield_point(this);
+        continue;
+      }
       StepTaskT<int> t = thread_step();
       t.set_owner(this);
       (void) co_await t;
