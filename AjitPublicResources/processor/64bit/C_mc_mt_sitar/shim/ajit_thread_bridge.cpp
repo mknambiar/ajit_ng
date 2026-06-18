@@ -86,9 +86,10 @@ static inline int in_range(int id) {
   return (id >= 0) && (id < kMaxSlots);
 }
 
-static uint64_t sitar_ticks_to_cycles(uint64_t ticks)
+static uint64_t sitar_ticks_to_cpu_clock(uint64_t ticks)
 {
-  return (ticks + 1u) / 2u;
+  // Adjacent SiTAR ticks are the two port phases of one Ajit CPU clock cycle.
+  return (ticks >> 1);
 }
 
 static uint32_t get_init_pc_override()
@@ -725,7 +726,7 @@ extern "C" void ajit_thread_bridge_dump_summary(void)
     const int done = g_runtime_done[id] ? 1 : 0;
     const uint64_t runtime_tick =
         done ? g_runtime_done_tick[id] : (seen ? g_runtime_last_tick[id] : 0);
-    const uint64_t runtime_cycles = sitar_ticks_to_cycles(runtime_tick);
+    const uint64_t runtime_cycles = sitar_ticks_to_cpu_clock(runtime_tick);
     if (active && seen && runtime_cycles > max_runtime_cycles) {
       max_runtime_cycles = runtime_cycles;
     }
