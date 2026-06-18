@@ -25,6 +25,45 @@
 extern int global_verbose_flag;
 extern int   global_enable_statistic_collection;
 
+static uint8_t rdasr_uses_sitar_time(void)
+{
+	static int initialized = 0;
+	static uint8_t enabled = 1;
+	if(!initialized)
+	{
+		const char* env = getenv("AJIT_RDASR_USES_SITAR_TIME");
+		if((env != NULL) && (env[0] != 0))
+		{
+			enabled = ((env[0] != '0') ? 1 : 0);
+		}
+		initialized = 1;
+	}
+	return enabled;
+}
+
+static uint64_t sitar_time_to_cpu_clock(uint64_t sim_time)
+{
+	/*
+	 * sim_time is the raw SiTAR scheduler tick. Adjacent ticks are the two
+	 * port phases of one Ajit CPU clock cycle, so ASR30/31 expose phase-pair
+	 * CPU cycles while protocol code continues to use the raw low phase bit.
+	 */
+	return (sim_time >> 1);
+}
+
+static int clock_trace_enabled(void)
+{
+	static int initialized = 0;
+	static int enabled = 0;
+	if(!initialized)
+	{
+		const char* env = getenv("AJIT_CLOCK_TRACE");
+		enabled = (env != NULL && env[0] != 0 && env[0] != '0') ? 1 : 0;
+		initialized = 1;
+	}
+	return enabled;
+}
+
 // 
 // Potential candidate for Aa implementation.. This should be
 // a Daemon which listens on a pipe and sends back response on
@@ -1047,7 +1086,21 @@ uint32_t executeReadStateReg( Opcode op, uint8_t rs1, uint32_t *result,
 		       {
 			       if((rs1 == 31) || (rs1 == 30))
 			       {
-				       uint64_t cycle_count = getCycleEstimate (thread_state);			
+				       uint64_t cycle_count = rdasr_uses_sitar_time() ?
+					       sitar_time_to_cpu_clock(thread_state->sitar_sim_time) : getCycleEstimate(thread_state);
+				       if(clock_trace_enabled())
+				       {
+					       fprintf(stderr,
+						       "CLOCK-TRACE pc=0x%08x rs1=%u sim=%llu cycles=%llu inst=%llu estimate=%llu miss-d=%u miss-i=%u\n",
+						       thread_state->status_reg.pc,
+						       (unsigned) rs1,
+						       (unsigned long long) thread_state->sitar_sim_time,
+						       (unsigned long long) cycle_count,
+						       (unsigned long long) thread_state->num_instructions_executed,
+						       (unsigned long long) getCycleEstimate(thread_state),
+						       (unsigned) thread_state->dcache->number_of_misses,
+						       (unsigned) thread_state->icache->number_of_misses);
+				       }
 				       if(rs1 == 30)
 				       {
 					       cycle_count = cycle_count >> 32;
