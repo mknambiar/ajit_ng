@@ -174,7 +174,20 @@ uint64_t constructPhysicalAddr(uint32_t pte, uint8_t pte_level, uint32_t virt_ad
 
 
 
-MmuState* makeMmuState (uint32_t core_id)
+static uint32_t pick_tlb_log_size(uint32_t requested, uint32_t default_value)
+{
+	if(requested == 0)
+	{
+		return default_value;
+	}
+	return requested;
+}
+
+MmuState* makeMmuState (uint32_t core_id,
+		uint32_t tlb0_log_mem_size, uint32_t tlb0_log_set_size,
+		uint32_t tlb1_log_mem_size, uint32_t tlb1_log_set_size,
+		uint32_t tlb2_log_mem_size, uint32_t tlb2_log_set_size,
+		uint32_t tlb3_log_mem_size, uint32_t tlb3_log_set_size)
 {
 	MmuState* ms = (MmuState*) malloc (sizeof (MmuState));
 	ms->core_id = core_id;
@@ -191,14 +204,29 @@ MmuState* makeMmuState (uint32_t core_id)
 	sprintf(ms->byte_mask_pipe, "AJIT_to_ENV_byte_mask_%d", core_id);
 	sprintf(ms->rdata_pipe, "ENV_to_AJIT_data_%d", core_id);
 
-	// fully associative TLB with 2 entries.
-	ms->tlb_0 = findOrAllocateSetAssociativeMemory(0,32,32,1,1);
-	// fully associative with 8 entries.
-	ms->tlb_1 = findOrAllocateSetAssociativeMemory(1,32,32,3,3);
-	// fully associative with 16 entries.
-	ms->tlb_2 = findOrAllocateSetAssociativeMemory(2,32,32,4,4);
-	// 8-way set associative with 64 entries.
-	ms->tlb_3 = findOrAllocateSetAssociativeMemory(3,32,32,6,3);
+	// Preserve current defaults unless a runtime override is supplied.
+	const uint32_t default_tlb0_log_mem_size = 1;
+	const uint32_t default_tlb0_log_set_size = 1;
+	const uint32_t default_tlb1_log_mem_size = 3;
+	const uint32_t default_tlb1_log_set_size = 3;
+	const uint32_t default_tlb2_log_mem_size = 4;
+	const uint32_t default_tlb2_log_set_size = 4;
+	const uint32_t default_tlb3_log_mem_size = 6;
+	const uint32_t default_tlb3_log_set_size = 3;
+
+	tlb0_log_mem_size = pick_tlb_log_size(tlb0_log_mem_size, default_tlb0_log_mem_size);
+	tlb0_log_set_size = pick_tlb_log_size(tlb0_log_set_size, default_tlb0_log_set_size);
+	tlb1_log_mem_size = pick_tlb_log_size(tlb1_log_mem_size, default_tlb1_log_mem_size);
+	tlb1_log_set_size = pick_tlb_log_size(tlb1_log_set_size, default_tlb1_log_set_size);
+	tlb2_log_mem_size = pick_tlb_log_size(tlb2_log_mem_size, default_tlb2_log_mem_size);
+	tlb2_log_set_size = pick_tlb_log_size(tlb2_log_set_size, default_tlb2_log_set_size);
+	tlb3_log_mem_size = pick_tlb_log_size(tlb3_log_mem_size, default_tlb3_log_mem_size);
+	tlb3_log_set_size = pick_tlb_log_size(tlb3_log_set_size, default_tlb3_log_set_size);
+
+	ms->tlb_0 = findOrAllocateSetAssociativeMemory(0,32,32,tlb0_log_mem_size,tlb0_log_set_size);
+	ms->tlb_1 = findOrAllocateSetAssociativeMemory(1,32,32,tlb1_log_mem_size,tlb1_log_set_size);
+	ms->tlb_2 = findOrAllocateSetAssociativeMemory(2,32,32,tlb2_log_mem_size,tlb2_log_set_size);
+	ms->tlb_3 = findOrAllocateSetAssociativeMemory(3,32,32,tlb3_log_mem_size,tlb3_log_set_size);
 
 	resetMmuState (ms);
 

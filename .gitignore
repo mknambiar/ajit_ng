@@ -52,6 +52,7 @@ bin/
 
 # scons
 *.dblite
+sitar_scons_config.txt
 
 # python related
 __pycache__/
@@ -79,15 +80,9 @@ ajit_C_system_model
 
 # Local helper scripts
 .local-bin/
-.codex*
 .codex-tmp/
 .codex*/tmp/
 build/
 *.o
 *.elf
 *.log
-*.run.err
-*_log.txt
-TOP*_log.txt
-main.results.sitar
-executed_command_log.txt

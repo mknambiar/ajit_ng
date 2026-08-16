@@ -4,7 +4,7 @@
 	//======================================
 	//file Timer.h                                                  
 	//Describes module Timer                                      
-	//Auto-generated from input file "memorytop.sitar" on 2026-4-16 at time 12:26:36   
+	//Auto-generated from input file "memorytop.sitar" on 2026-7-19 at time 22:6:27   
 	 //(This design unit is parameterized. Generating code into a .h file only) 
 	
 	//======================================
@@ -16,10 +16,12 @@
 	#include"sitar_time.h"
 	//user included files
 	 
-//----code block from file memorytop.sitar, line:662 ----
+//----code block from file memorytop.sitar, line:673 ----
 extern "C" {
 		#include "bridge_module_helpers.h"
 	}
+	#include <cstdlib>
+	#include <cstdio>
 	
 //----end code block-------
 
@@ -59,15 +61,19 @@ extern "C" {
 inport<64> request;
 outport<32> response;
 outport<8> irq_level;
-//----code block from file memorytop.sitar, line:667 ----
+//----code block from file memorytop.sitar, line:680 ----
 uint32_t control_register; uint32_t timer_count; uint32_t timer_max_count; uint32_t data_out; uint32_t addr; uint32_t data_in; uint32_t next_value;
 //----end code block-------
 
-//----code block from file memorytop.sitar, line:668 ----
+//----code block from file memorytop.sitar, line:681 ----
+uint32_t timer_tick_div; uint32_t timer_tick_phase;
+//----end code block-------
+
+//----code block from file memorytop.sitar, line:682 ----
 bool done_pull; bool done_push; bool rwbar; bool response_pending;
 //----end code block-------
 
-//----code block from file memorytop.sitar, line:669 ----
+//----code block from file memorytop.sitar, line:683 ----
 uint8_t stage; uint8_t resp_stage; uint8_t byte_mask; uint8_t irq_value; uint8_t timer_state;
 //----end code block-------
 
@@ -157,16 +163,24 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:672 ----
+//----code block from file memorytop.sitar, line:685 ----
 
 	control_register = 0;
 	timer_count = 0;
 	timer_max_count = 0;
+	timer_tick_div = 10000000u;
+	timer_tick_phase = 0;
 	irq_value = 0;
 	timer_state = 0;
 	stage = 0;
 	resp_stage = 0;
 	response_pending = false;
+	if(const char* tick_div_env = std::getenv("AJIT_TIMER_TICK_DIV")) {
+		unsigned long parsed = std::strtoul(tick_div_env, NULL, 0);
+		if(parsed != 0ul) {
+			timer_tick_div = (uint32_t) parsed;
+		}
+	}
 	
 //----end code block-------
 
@@ -175,7 +189,7 @@ case 0:
 
 case 1 :
 {
-//do-while statement , line:682
+//do-while statement , line:703
  int _dowhile_iteration;
 for(_dowhile_iteration=1; _dowhile_iteration<=SITAR_ITERATION_LIMIT; _dowhile_iteration++)
 {
@@ -186,7 +200,7 @@ switch(_pointer[1])
 case 0:
 {
 
-//if statement , line:683
+//if statement , line:704
 if(((((((current_time.phase()))==(0))))))
 _if_flag[0]=true;
 else
@@ -206,7 +220,7 @@ switch(_pointer[2])
 case 0:
 {
 
-//if statement , line:684
+//if statement , line:705
 if((((((timer_state)==(1))))))
 _if_flag[1]=true;
 else
@@ -227,12 +241,17 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:685 ----
-timer_count = timer_count + 1;
-				if((timer_max_count != 0) && (timer_count >= timer_max_count)) {
-					timer_state = 2;
-					irq_value = 10;
+//----code block from file memorytop.sitar, line:706 ----
+timer_tick_phase = timer_tick_phase + 1;
+				if(timer_tick_phase >= timer_tick_div) {
+					timer_tick_phase = 0;
+					timer_count = timer_count + 1;
+					if((timer_max_count != 0) && (timer_count >= timer_max_count)) {
+						timer_state = 2;
+						irq_value = 10;
+					}
 				}
+				
 //----end code block-------
 
  _incrementPointer(3);
@@ -265,7 +284,7 @@ if((_if_flag[1]==true && _pointer[3]>=_pointer_last_value[3]) || (_if_flag[1]==f
 case 2:
 {
 
-//if statement , line:691
+//if statement , line:717
 if((((!((response_pending))))))
 _if_flag[2]=true;
 else
@@ -286,7 +305,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:692 ----
+//----code block from file memorytop.sitar, line:718 ----
 done_pull = peripheral_pull_request_step(&stage,
 					&rwbar,
 					&byte_mask,
@@ -301,7 +320,7 @@ done_pull = peripheral_pull_request_step(&stage,
 case 1:
 {
 
-//if statement , line:698
+//if statement , line:724
 if((((((done_pull))))))
 _if_flag[3]=true;
 else
@@ -321,7 +340,7 @@ switch(_pointer[5])
 case 0:
 {
 
-//if statement , line:699
+//if statement , line:725
 if((((((rwbar))))))
 _if_flag[4]=true;
 else
@@ -342,7 +361,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:700 ----
+//----code block from file memorytop.sitar, line:726 ----
 data_out = control_register;
 //----end code block-------
 
@@ -364,7 +383,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:702 ----
+//----code block from file memorytop.sitar, line:728 ----
 next_value = bridge_insert_using_byte_mask32(control_register, data_in, byte_mask);
 						control_register = next_value;
 						if((control_register & 0x1) == 0) {
@@ -372,11 +391,13 @@ next_value = bridge_insert_using_byte_mask32(control_register, data_in, byte_mas
 							irq_value = 0;
 							timer_count = 0;
 							timer_max_count = 0;
+							timer_tick_phase = 0;
 						} else if(timer_state == 0) {
 							timer_state = 1;
 							irq_value = 0;
 							timer_count = 0;
 							timer_max_count = (control_register >> 1);
+							timer_tick_phase = 0;
 						} else if(timer_state == 1) {
 							timer_max_count = (control_register >> 1);
 						}
@@ -412,7 +433,7 @@ case 2:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:720 ----
+//----code block from file memorytop.sitar, line:748 ----
 response_pending = true; resp_stage = 0; stage = 0;
 //----end code block-------
 
@@ -482,7 +503,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:724 ----
+//----code block from file memorytop.sitar, line:752 ----
 done_push = signal_push_u8(&irq_level, irq_value);
 //----end code block-------
 
@@ -492,7 +513,7 @@ done_push = signal_push_u8(&irq_level, irq_value);
 case 1:
 {
 
-//if statement , line:725
+//if statement , line:753
 if((((((response_pending))))))
 _if_flag[5]=true;
 else
@@ -513,7 +534,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:726 ----
+//----code block from file memorytop.sitar, line:754 ----
 done_push = peripheral_send_response_step(&resp_stage, &response, data_out);
 //----end code block-------
 
@@ -523,7 +544,7 @@ done_push = peripheral_send_response_step(&resp_stage, &response, data_out);
 case 1:
 {
 
-//if statement , line:727
+//if statement , line:755
 if((((((done_push))))))
 _if_flag[6]=true;
 else
@@ -544,7 +565,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:728 ----
+//----code block from file memorytop.sitar, line:756 ----
 response_pending = false;
 //----end code block-------
 
@@ -623,7 +644,7 @@ if((_if_flag[0]==true && _pointer[2]>=_pointer_last_value[2]) || (_if_flag[0]==f
 case 2:
 {
 
-//wait-for -time statement , line:732
+//wait-for -time statement , line:760
 _timer[0] = sitar::time(current_time)+sitar::time(((0)),((1)));
  _incrementPointer(1);
 }
@@ -657,7 +678,7 @@ else break; //sequence has terminated
 	{                                                                                               
 		//iteration limit exceeded. Throw error and                                             
 		//terminate the do-while statement                                                      
- 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:682 in file memorytop.sitar";
+ 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:703 in file memorytop.sitar";
 		_pointer[1]=0;                                                               
 		_incrementPointer(0);                                                                    
 	}                                                                                              

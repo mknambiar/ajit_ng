@@ -4,7 +4,7 @@
 	//======================================
 	//file ConsoleInput.h                                                  
 	//Describes module ConsoleInput                                      
-	//Auto-generated from input file "memorytop.sitar" on 2026-4-16 at time 12:26:36   
+	//Auto-generated from input file "memorytop.sitar" on 2026-7-19 at time 22:6:27   
 	 //(This design unit is parameterized. Generating code into a .h file only) 
 	
 	//======================================
@@ -16,7 +16,7 @@
 	#include"sitar_time.h"
 	//user included files
 	 
-//----code block from file memorytop.sitar, line:1096 ----
+//----code block from file memorytop.sitar, line:1124 ----
 extern "C" {
 		#include <stdlib.h>
 		#include "ajit_memory_shim.h"
@@ -62,11 +62,11 @@ outport<8> console_rx_data;
 outport<8> console_rx_valid;
 inport<8> console_rx_ack;
 inport<8> control_word;
-//----code block from file memorytop.sitar, line:1103 ----
+//----code block from file memorytop.sitar, line:1131 ----
 uint8_t rx_data; uint8_t rx_valid; uint8_t rx_ack; uint8_t control_value; uint8_t input_paced; uint8_t input_prompt_paced; uint8_t first_byte_sent;
 //----end code block-------
 
-//----code block from file memorytop.sitar, line:1104 ----
+//----code block from file memorytop.sitar, line:1132 ----
 uint64_t output_count; uint64_t prompt_count; uint64_t last_release_output_count; uint64_t last_release_prompt_count; uint64_t last_seen_prompt_count; uint32_t prompt_release_delay; uint32_t prompt_delay_budget;
 //----end code block-------
 
@@ -153,7 +153,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:1107 ----
+//----code block from file memorytop.sitar, line:1135 ----
 
 	rx_data = 0;
 	rx_valid = 0;
@@ -177,7 +177,7 @@ case 0:
 
 case 1 :
 {
-//do-while statement , line:1123
+//do-while statement , line:1151
  int _dowhile_iteration;
 for(_dowhile_iteration=1; _dowhile_iteration<=SITAR_ITERATION_LIMIT; _dowhile_iteration++)
 {
@@ -188,7 +188,7 @@ switch(_pointer[1])
 case 0:
 {
 
-//if statement , line:1124
+//if statement , line:1152
 if(((((((current_time.phase()))==(0))))))
 _if_flag[0]=true;
 else
@@ -209,7 +209,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:1125 ----
+//----code block from file memorytop.sitar, line:1153 ----
 {
 				const char* paced_env = getenv("AJIT_CONSOLE_INPUT_PACED");
 				const char* prompt_delay_env = getenv("AJIT_CONSOLE_PROMPT_DELAY");
@@ -240,7 +240,7 @@ case 1:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:1146 ----
+//----code block from file memorytop.sitar, line:1174 ----
 rx_ack = 0;
 			{
 				uint8_t next_u8 = 0;
@@ -293,7 +293,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:1179 ----
+//----code block from file memorytop.sitar, line:1207 ----
 signal_push_u8(&console_rx_data, rx_data);
 			signal_push_u8(&console_rx_valid, rx_valid);
 //----end code block-------
@@ -325,7 +325,7 @@ if((_if_flag[0]==true && _pointer[2]>=_pointer_last_value[2]) || (_if_flag[0]==f
 case 2:
 {
 
-//wait-for -time statement , line:1182
+//wait-for -time statement , line:1210
 _timer[0] = sitar::time(current_time)+sitar::time(((0)),((1)));
  _incrementPointer(1);
 }
@@ -359,7 +359,7 @@ else break; //sequence has terminated
 	{                                                                                               
 		//iteration limit exceeded. Throw error and                                             
 		//terminate the do-while statement                                                      
- 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:1123 in file memorytop.sitar";
+ 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:1151 in file memorytop.sitar";
 		_pointer[1]=0;                                                               
 		_incrementPointer(0);                                                                    
 	}                                                                                              

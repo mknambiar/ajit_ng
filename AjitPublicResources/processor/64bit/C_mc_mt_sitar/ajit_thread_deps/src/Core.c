@@ -21,6 +21,10 @@ static void init_core(CoreState* s,
 			int bp_table_size,
 			uint32_t icache_number_of_lines,  uint32_t icache_associativity,
 			uint32_t dcache_number_of_lines,  uint32_t dcache_associativity,
+			uint32_t tlb0_log_mem_size, uint32_t tlb0_log_set_size,
+			uint32_t tlb1_log_mem_size, uint32_t tlb1_log_set_size,
+			uint32_t tlb2_log_mem_size, uint32_t tlb2_log_set_size,
+			uint32_t tlb3_log_mem_size, uint32_t tlb3_log_set_size,
 			uint8_t report_traps, uint32_t init_pc)
 {
 	s->core_id = core_id;
@@ -30,7 +34,11 @@ static void init_core(CoreState* s,
 	s->mmu_is_present       = isMmuPresent(core_id);
 
 	// make the memory subsystem.
-	s->mmu_state      =  makeMmuState (core_id);
+	s->mmu_state      =  makeMmuState (core_id,
+						tlb0_log_mem_size, tlb0_log_set_size,
+						tlb1_log_mem_size, tlb1_log_set_size,
+						tlb2_log_mem_size, tlb2_log_set_size,
+						tlb3_log_mem_size, tlb3_log_set_size);
 	s->icache         =  makeCache (core_id, 1, icache_number_of_lines, icache_associativity);
 	s->dcache         =  makeCache (core_id, 0, dcache_number_of_lines, dcache_associativity);
 
@@ -68,6 +76,10 @@ CoreState*  makeCoreState(	uint32_t core_id,
 				uint32_t bp_table_size, 
 				uint32_t icache_number_of_lines,  uint32_t icache_associativity,
 				uint32_t dcache_number_of_lines,  uint32_t dcache_associativity,
+				uint32_t tlb0_log_mem_size, uint32_t tlb0_log_set_size,
+				uint32_t tlb1_log_mem_size, uint32_t tlb1_log_set_size,
+				uint32_t tlb2_log_mem_size, uint32_t tlb2_log_set_size,
+				uint32_t tlb3_log_mem_size, uint32_t tlb3_log_set_size,
 				uint8_t report_traps,
 				uint32_t init_pc)
 {
@@ -75,6 +87,10 @@ CoreState*  makeCoreState(	uint32_t core_id,
 	init_core (s, core_id, number_of_threads, isa_mode, bp_table_size, 
 				icache_number_of_lines, icache_associativity,
 				dcache_number_of_lines, dcache_associativity,
+				tlb0_log_mem_size, tlb0_log_set_size,
+				tlb1_log_mem_size, tlb1_log_set_size,
+				tlb2_log_mem_size, tlb2_log_set_size,
+				tlb3_log_mem_size, tlb3_log_set_size,
 					report_traps, init_pc);
 	return(s);
 }

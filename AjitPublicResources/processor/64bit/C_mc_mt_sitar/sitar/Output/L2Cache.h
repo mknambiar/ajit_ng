@@ -4,7 +4,7 @@
 	//======================================
 	//file L2Cache.h                                                  
 	//Describes module L2Cache                                      
-	//Auto-generated from input file "memorytop.sitar" on 2026-4-16 at time 12:26:36   
+	//Auto-generated from input file "memorytop.sitar" on 2026-7-19 at time 22:6:27   
 	 //(This design unit is parameterized. Generating code into a .h file only) 
 	
 	//======================================
@@ -20,6 +20,8 @@
 extern "C" {
 		#include "bridge_module_helpers.h"
 	}
+	#include <cstdlib>
+	#include <cstdio>
 	
 //----end code block-------
 
@@ -68,19 +70,19 @@ outport<32> mem_addr_out;
 outport<64> mem_data_out;
 outport<8> mem_byte_mask;
 inport<64> mem_data_in;
-//----code block from file memorytop.sitar, line:447 ----
+//----code block from file memorytop.sitar, line:449 ----
 uint64_t read_data; bool done_pull; bool done_push; bool write_val;
 //----end code block-------
 
-//----code block from file memorytop.sitar, line:448 ----
+//----code block from file memorytop.sitar, line:450 ----
 uint32_t mem_addr;
 //----end code block-------
 
-//----code block from file memorytop.sitar, line:449 ----
+//----code block from file memorytop.sitar, line:451 ----
 uint64_t data; uint8_t req_stage; uint8_t l2_stage; uint8_t resp_stage;
 //----end code block-------
 
-//----code block from file memorytop.sitar, line:450 ----
+//----code block from file memorytop.sitar, line:452 ----
 uint8_t bmask;
 //----end code block-------
 
@@ -205,7 +207,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:453 ----
+//----code block from file memorytop.sitar, line:455 ----
 
 	req_stage = 0;
 	l2_stage = 0;
@@ -218,7 +220,7 @@ case 0:
 
 case 1 :
 {
-//do-while statement , line:458
+//do-while statement , line:460
  int _dowhile_iteration;
 for(_dowhile_iteration=1; _dowhile_iteration<=SITAR_ITERATION_LIMIT; _dowhile_iteration++)
 {
@@ -229,7 +231,7 @@ switch(_pointer[1])
 case 0:
 {
 
-//wait-until statement , line:459
+//wait-until statement , line:461
 if(((((((current_time.phase()))==(0))))))
  _incrementPointer(1);
 else
@@ -239,7 +241,7 @@ case 1:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:460 ----
+//----code block from file memorytop.sitar, line:462 ----
 done_pull = memory_pull_request_step(&req_stage,
 			&write_val,
 			&mem_addr,
@@ -258,7 +260,7 @@ done_pull = memory_pull_request_step(&req_stage,
 case 2:
 {
 
-//if statement , line:470
+//if statement , line:472
 if((((!((done_pull))))))
 _if_flag[0]=true;
 else
@@ -278,7 +280,7 @@ switch(_pointer[2])
 case 0:
 {
 
-//wait statement , line:471
+//wait statement , line:473
 _timer[0] = sitar::time(current_time)+sitar::time(0,1);
  _incrementPointer(2);
 }
@@ -305,7 +307,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:473 ----
+//----code block from file memorytop.sitar, line:475 ----
 l2_stage = 0;
 //----end code block-------
 
@@ -314,7 +316,7 @@ l2_stage = 0;
 
 case 1 :
 {
-//do-while statement , line:474
+//do-while statement , line:476
  int _dowhile_iteration;
 for(_dowhile_iteration=1; _dowhile_iteration<=SITAR_ITERATION_LIMIT; _dowhile_iteration++)
 {
@@ -325,7 +327,7 @@ switch(_pointer[4])
 case 0:
 {
 
-//if statement , line:475
+//if statement , line:477
 if(((((((current_time.phase()))==(0))))))
 _if_flag[1]=true;
 else
@@ -346,7 +348,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:476 ----
+//----code block from file memorytop.sitar, line:478 ----
 done_push = l2_cache_access_step(&l2_stage,
 						0,
 						write_val,
@@ -380,7 +382,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:490 ----
+//----code block from file memorytop.sitar, line:492 ----
 done_push = l2_cache_access_step(&l2_stage,
 						1,
 						write_val,
@@ -423,7 +425,7 @@ if((_if_flag[1]==true && _pointer[5]>=_pointer_last_value[5]) || (_if_flag[1]==f
 case 2:
 {
 
-//if statement , line:504
+//if statement , line:506
 if((((!((done_push))))))
 _if_flag[2]=true;
 else
@@ -443,7 +445,7 @@ switch(_pointer[7])
 case 0:
 {
 
-//wait statement , line:504
+//wait statement , line:506
 _timer[1] = sitar::time(current_time)+sitar::time(0,1);
  _incrementPointer(7);
 }
@@ -501,7 +503,7 @@ else break; //sequence has terminated
 	{                                                                                               
 		//iteration limit exceeded. Throw error and                                             
 		//terminate the do-while statement                                                      
- 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:474 in file memorytop.sitar";
+ 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:476 in file memorytop.sitar";
 		_pointer[4]=0;                                                               
 		_incrementPointer(3);                                                                    
 	}                                                                                              
@@ -521,7 +523,7 @@ case 2:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:507 ----
+//----code block from file memorytop.sitar, line:509 ----
 resp_stage = 0;
 //----end code block-------
 
@@ -530,7 +532,7 @@ resp_stage = 0;
 
 case 3 :
 {
-//do-while statement , line:508
+//do-while statement , line:510
  int _dowhile_iteration;
 for(_dowhile_iteration=1; _dowhile_iteration<=SITAR_ITERATION_LIMIT; _dowhile_iteration++)
 {
@@ -541,7 +543,7 @@ switch(_pointer[8])
 case 0:
 {
 
-//wait-until statement , line:509
+//wait-until statement , line:511
 if(((((((current_time.phase()))==(1))))))
  _incrementPointer(8);
 else
@@ -551,7 +553,7 @@ case 1:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:510 ----
+//----code block from file memorytop.sitar, line:512 ----
 done_push = memory_send_response_step(&resp_stage, &data_out, read_data);
 //----end code block-------
 
@@ -561,7 +563,7 @@ done_push = memory_send_response_step(&resp_stage, &data_out, read_data);
 case 2:
 {
 
-//if statement , line:511
+//if statement , line:513
 if((((!((done_push))))))
 _if_flag[3]=true;
 else
@@ -581,7 +583,7 @@ switch(_pointer[9])
 case 0:
 {
 
-//wait statement , line:511
+//wait statement , line:513
 _timer[2] = sitar::time(current_time)+sitar::time(0,1);
  _incrementPointer(9);
 }
@@ -639,7 +641,7 @@ else break; //sequence has terminated
 	{                                                                                               
 		//iteration limit exceeded. Throw error and                                             
 		//terminate the do-while statement                                                      
- 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:508 in file memorytop.sitar";
+ 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:510 in file memorytop.sitar";
 		_pointer[8]=0;                                                               
 		_incrementPointer(3);                                                                    
 	}                                                                                              
@@ -659,7 +661,7 @@ case 4:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:514 ----
+//----code block from file memorytop.sitar, line:516 ----
 req_stage = 0;
 			bmask = 0xff;
 //----end code block-------
@@ -710,7 +712,7 @@ else break; //sequence has terminated
 	{                                                                                               
 		//iteration limit exceeded. Throw error and                                             
 		//terminate the do-while statement                                                      
- 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:458 in file memorytop.sitar";
+ 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:460 in file memorytop.sitar";
 		_pointer[1]=0;                                                               
 		_incrementPointer(0);                                                                    
 	}                                                                                              

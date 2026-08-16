@@ -91,7 +91,11 @@ typedef struct _MmuState {
 
 
 // Mmu Behavior
-MmuState* makeMmuState (uint32_t core_id);
+MmuState* makeMmuState (uint32_t core_id,
+                        uint32_t tlb0_log_mem_size, uint32_t tlb0_log_set_size,
+                        uint32_t tlb1_log_mem_size, uint32_t tlb1_log_set_size,
+                        uint32_t tlb2_log_mem_size, uint32_t tlb2_log_set_size,
+                        uint32_t tlb3_log_mem_size, uint32_t tlb3_log_set_size);
 void resetMmuState (MmuState* ms);
 void printMmuStatistics(MmuState* ms);
 void Mmu(MmuState* ms, int thread_id,

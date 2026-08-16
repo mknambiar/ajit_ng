@@ -42,6 +42,38 @@ extern int global_stat_collection_trigger_pc;
 
 namespace {
 
+bool shouldTracePcWindow(uint32_t pc)
+{
+  static int inited = 0;
+  static uint32_t start0 = 0, end0 = 0, start1 = 0, end1 = 0;
+
+  if (!inited) {
+    auto parse_hex_env = [](const char* name, uint32_t* out) {
+      const char* env = std::getenv(name);
+      if ((env == nullptr) || (env[0] == '\0')) {
+        return false;
+      }
+      char* endp = nullptr;
+      unsigned long v = std::strtoul(env, &endp, 0);
+      if (endp == env) {
+        return false;
+      }
+      *out = (uint32_t) v;
+      return true;
+    };
+
+    (void) parse_hex_env("AJIT_STEP_PC_WINDOW0_START", &start0);
+    (void) parse_hex_env("AJIT_STEP_PC_WINDOW0_END", &end0);
+    (void) parse_hex_env("AJIT_STEP_PC_WINDOW1_START", &start1);
+    (void) parse_hex_env("AJIT_STEP_PC_WINDOW1_END", &end1);
+    inited = 1;
+  }
+
+  const bool in0 = ((start0 != 0u) && (end0 != 0u) && (pc >= start0) && (pc < end0));
+  const bool in1 = ((start1 != 0u) && (end1 != 0u) && (pc >= start1) && (pc < end1));
+  return (in0 || in1);
+}
+
 void emitWriteTraceIfEnabled(const ThreadState* s)
 {
   static std::mutex wtrace_mu;
@@ -471,6 +503,16 @@ StepTaskT<int> ajit_thread(CoroutineOwner* owner, ThreadState* state_ptr)
                    state_ptr->status_reg.pc, state_ptr->instruction,
                    format_op, op3);
       ajit_step_pc_trace_printed++;
+    }
+    if ((state_ptr->core_id == 0) &&
+        (state_ptr->thread_id == 0) &&
+        shouldTracePcWindow(state_ptr->status_reg.pc)) {
+      std::fprintf(stderr,
+                   "STEP-PC-WINDOW c%u t%u sim=%llu pc=0x%08x inst=0x%08x fmt=%u op3=0x%02x\n",
+                   state_ptr->core_id, state_ptr->thread_id,
+                   (unsigned long long) state_ptr->sitar_sim_time,
+                   state_ptr->status_reg.pc, state_ptr->instruction,
+                   format_op, op3);
     }
     if (is_memory_format) {
       ajit_step_mem_class_total++;

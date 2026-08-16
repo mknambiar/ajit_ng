@@ -90,13 +90,13 @@ def setGlobals(ajit_uclibc, ajit_libgcc):
     global SPARC_AS
     SPARC_AS =  COMPILER_PREFIX + "as "
     global SPARC_AS_FLAGS
-    SPARC_AS_FLAGS = " -Av8 " 
+    SPARC_AS_FLAGS = " -32 -Av8 " 
     
     #loader
     global SPARC_LD
     SPARC_LD = COMPILER_PREFIX+"ld "
     global SPARC_LD_FLAGS
-    SPARC_LD_FLAGS = " --verbose=5"
+    SPARC_LD_FLAGS = " --verbose=5 -m elf32_sparc"
     SPARC_LD_FLAGS += " -L " + ajit_uclibc + "/lib/ -e main -T "
     #SPARC_LD_FLAGS =" -e main -T "
 

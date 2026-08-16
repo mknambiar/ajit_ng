@@ -353,34 +353,35 @@ extern "C" int ajit_shim_write(int id, uint64_t sim_time)
 
     bool phase = (sim_time & 0x1) ? true : false;
     if (phase && !g_req_sent[id]) {
-        bool ok = false;
-        switch (g_req_stage[id]) {
-            case 0:
-                ok = pushbool(g_act_port[pid], true, false);
-                break;
-            case 1:
-                ok = pushbool(g_wr_port[pid], true, false);
-                break;
-            case 2:
-                ok = pushword(g_addr_port[pid], g_addr[id], false);
-                break;
-            case 3:
-                ok = pushdword(g_data_out_port[pid], g_wdata[id], false);
-                break;
-            case 4:
-                ok = pushchar(g_bm_port[pid], g_bm[id], false);
-                break;
-            default:
-                ok = true;
-                break;
-        }
-        if (ok) {
-            g_req_stage[id]++;
-            if (g_req_stage[id] >= 5) {
-                g_req_sent[id] = true;
-                g_req_stage[id] = 0;
+        while (g_req_stage[id] < 5) {
+            bool ok = false;
+            switch (g_req_stage[id]) {
+                case 0:
+                    ok = pushbool(g_act_port[pid], true, false);
+                    break;
+                case 1:
+                    ok = pushbool(g_wr_port[pid], true, false);
+                    break;
+                case 2:
+                    ok = pushword(g_addr_port[pid], g_addr[id], false);
+                    break;
+                case 3:
+                    ok = pushdword(g_data_out_port[pid], g_wdata[id], false);
+                    break;
+                case 4:
+                    ok = pushchar(g_bm_port[pid], g_bm[id], false);
+                    break;
+                default:
+                    ok = true;
+                    break;
             }
+            if (!ok) {
+                return 0;
+            }
+            g_req_stage[id]++;
         }
+        g_req_sent[id] = true;
+        g_req_stage[id] = 0;
         return 0;
     }
 
@@ -413,28 +414,29 @@ extern "C" int ajit_shim_read(int id, uint64_t sim_time, uint64_t* out)
 
     bool phase = (sim_time & 0x1) ? true : false;
     if (phase && !g_req_sent[id]) {
-        bool ok = false;
-        switch (g_req_stage[id]) {
-            case 0:
-                ok = pushbool(g_act_port[pid], true, false);
-                break;
-            case 1:
-                ok = pushbool(g_wr_port[pid], false, false);
-                break;
-            case 2:
-                ok = pushword(g_addr_port[pid], g_addr[id], false);
-                break;
-            default:
-                ok = true;
-                break;
-        }
-        if (ok) {
-            g_req_stage[id]++;
-            if (g_req_stage[id] >= 3) {
-                g_req_sent[id] = true;
-                g_req_stage[id] = 0;
+        while (g_req_stage[id] < 3) {
+            bool ok = false;
+            switch (g_req_stage[id]) {
+                case 0:
+                    ok = pushbool(g_act_port[pid], true, false);
+                    break;
+                case 1:
+                    ok = pushbool(g_wr_port[pid], false, false);
+                    break;
+                case 2:
+                    ok = pushword(g_addr_port[pid], g_addr[id], false);
+                    break;
+                default:
+                    ok = true;
+                    break;
             }
+            if (!ok) {
+                return 0;
+            }
+            g_req_stage[id]++;
         }
+        g_req_sent[id] = true;
+        g_req_stage[id] = 0;
         return 0;
     }
 

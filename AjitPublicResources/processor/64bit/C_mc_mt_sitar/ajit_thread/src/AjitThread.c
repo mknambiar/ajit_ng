@@ -34,6 +34,25 @@ extern int use_instruction_buffer;
 extern int   global_enable_statistic_collection;
 extern int   global_stat_collection_trigger_pc;
 
+static uint32_t get_asr28_descriptor_word_override(void)
+{
+	const char* ev = getenv("AJIT_THREAD_DESCRIPTOR_WORD");
+	if((ev == NULL) || (ev[0] == '\0'))
+	{
+		return DEFAULT_HALF_PRECISION_EXPONENT_WIDTH;
+	}
+
+	char* endp = NULL;
+	unsigned long v = strtoul(ev, &endp, 0);
+	if(endp == ev)
+	{
+		fprintf(stderr, "AJIT_THREAD: invalid AJIT_THREAD_DESCRIPTOR_WORD='%s', using 0x%x\n",
+				ev, DEFAULT_HALF_PRECISION_EXPONENT_WIDTH);
+		return DEFAULT_HALF_PRECISION_EXPONENT_WIDTH;
+	}
+	return (uint32_t) v;
+}
+
 void increment_instruction_count(ThreadState* s) 
 { 
 	s->num_instructions_executed++; 
@@ -299,7 +318,7 @@ void resetThreadState(ThreadState *s)
 	// a default value, but this value can be overridden
 	// by the programmer.
 	//
-	status_reg->asr[28] = DEFAULT_HALF_PRECISION_EXPONENT_WIDTH;
+	status_reg->asr[28] = get_asr28_descriptor_word_override();
 
 	s->num_ifetches = 0;
 	s->num_instructions_executed = 0;

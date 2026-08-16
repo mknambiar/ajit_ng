@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SITAR_DIR="${ROOT_DIR}/sitar"
 AJIT_SRC_ROOT="${ROOT_DIR}/../C_multi_core_multi_thread"
 REPO_ROOT="${ROOT_DIR}/../../../.."
+LOCAL_SITAR_BIN="${REPO_ROOT}/.codex-tmp/sitar-master-local/scripts/sitar"
 NUM_CORES_REQ="${AJIT_NUM_CORES:-4}"
 
 if [[ ! -d "${SITAR_DIR}" ]]; then
@@ -52,6 +53,12 @@ AJIT_CORE_INCLUDE_FLAGS="\
 
 cd "${SITAR_DIR}"
 
+if [[ -x "${LOCAL_SITAR_BIN}" ]]; then
+  SITAR_BIN="${LOCAL_SITAR_BIN}"
+else
+  SITAR_BIN="$(command -v sitar)"
+fi
+
 echo "[build 1/4] Cleaning generated Output/*"
 rm -rf Output/*
 rm -f sitar_sim
@@ -60,12 +67,12 @@ echo "[build 2/4] Cleaning stale objects in C_mc_mt_sitar"
 find "${ROOT_DIR}" -type f -name '*.o' -delete
 
 echo "[build 3/4] Translating sitar sources"
-if ! sitar translate cop.sitar > "${LOG_DIR}/translate_cop_${STAMP}.log" 2>&1; then
+ if ! "${SITAR_BIN}" translate cop.sitar > "${LOG_DIR}/translate_cop_${STAMP}.log" 2>&1; then
   echo "ERROR: sitar translate cop.sitar failed. See ${LOG_DIR}/translate_cop_${STAMP}.log" >&2
   tail -n 120 "${LOG_DIR}/translate_cop_${STAMP}.log" || true
   exit 1
 fi
-if ! sitar translate memorytop.sitar > "${LOG_DIR}/translate_memorytop_${STAMP}.log" 2>&1; then
+ if ! "${SITAR_BIN}" translate memorytop.sitar > "${LOG_DIR}/translate_memorytop_${STAMP}.log" 2>&1; then
   echo "ERROR: sitar translate memorytop.sitar failed. See ${LOG_DIR}/translate_memorytop_${STAMP}.log" >&2
   tail -n 120 "${LOG_DIR}/translate_memorytop_${STAMP}.log" || true
   exit 1
@@ -74,7 +81,7 @@ fi
 echo "[build 4/4] Compiling sitar_sim"
 echo "[build cfg] AJIT_NUM_CORES=${SITAR_NUM_CORES_RESOLVED} SITAR_NUMT=${SITAR_NUMT_RESOLVED}"
 echo "[build cfg] AJIT_SITAR_ENABLE_LOGGING=${AJIT_SITAR_ENABLE_LOGGING:-0}"
-if ! sitar compile \
+if ! "${SITAR_BIN}" compile \
   -d ./Output \
   -d ../shim \
   -d ../ajit_thread/src \

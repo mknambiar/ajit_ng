@@ -27,6 +27,10 @@ CoreState* makeCoreState(uint32_t core_id,
 			uint32_t bp_table_size,
 			uint32_t icache_number_of_lines, uint32_t icache_associativity,
 			uint32_t dcache_number_of_lines, uint32_t dcache_associativity,
+			uint32_t tlb0_log_mem_size, uint32_t tlb0_log_set_size,
+			uint32_t tlb1_log_mem_size, uint32_t tlb1_log_set_size,
+			uint32_t tlb2_log_mem_size, uint32_t tlb2_log_set_size,
+			uint32_t tlb3_log_mem_size, uint32_t tlb3_log_set_size,
 			uint8_t report_traps, uint32_t init_pc);
 
 void setPageBit(CoreState* s, uint32_t virtual_addr);

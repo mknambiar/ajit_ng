@@ -833,6 +833,3 @@ int main(int argc, char **argv)
 		freeSwizzler(Sr);	
 	return (main_ret_val);
 }
-
-
-

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cctype>
+#include <string>
 
 // Build real bridge only when Ajit CPU headers are visible in include path.
 #if __has_include("RegisterFile.h") && __has_include("ThreadInterface.h")
@@ -25,6 +26,10 @@ extern "C" CoreState* makeCoreState(uint32_t core_id,
                                     uint32_t bp_table_size,
                                     uint32_t icache_number_of_lines,  uint32_t icache_associativity,
                                     uint32_t dcache_number_of_lines,  uint32_t dcache_associativity,
+                                    uint32_t tlb0_log_mem_size, uint32_t tlb0_log_set_size,
+                                    uint32_t tlb1_log_mem_size, uint32_t tlb1_log_set_size,
+                                    uint32_t tlb2_log_mem_size, uint32_t tlb2_log_set_size,
+                                    uint32_t tlb3_log_mem_size, uint32_t tlb3_log_set_size,
                                     uint8_t report_traps, uint32_t init_pc) __attribute__((weak));
 extern "C" void setThreadSitarSimTime(ThreadState* state_ptr, uint64_t sim_time) __attribute__((weak));
 extern "C" void ajit_step_dump_opcode_summary(void) __attribute__((weak));
@@ -92,9 +97,36 @@ static uint64_t sitar_ticks_to_cpu_clock(uint64_t ticks)
   return (ticks >> 1);
 }
 
+static void trim_in_place(char* s)
+{
+  if (s == nullptr) {
+    return;
+  }
+  char* start = s;
+  while (*start && std::isspace((unsigned char) *start)) {
+    ++start;
+  }
+  if (start != s) {
+    std::memmove(s, start, std::strlen(start) + 1);
+  }
+  size_t len = std::strlen(s);
+  while (len > 0 && std::isspace((unsigned char) s[len - 1])) {
+    s[--len] = '\0';
+  }
+}
+
+static bool get_config_value_raw(const char* name, char* out, size_t out_sz);
+
 static uint32_t get_init_pc_override()
 {
+  char raw[64] = {};
   const char* ev = std::getenv("AJIT_INIT_PC");
+  if (ev == nullptr || ev[0] == '\0') {
+    if (!get_config_value_raw("AJIT_INIT_PC", raw, sizeof(raw))) {
+      return 0;
+    }
+    ev = raw;
+  }
   if (ev == nullptr || ev[0] == '\0') {
     return 0;
   }
@@ -107,16 +139,90 @@ static uint32_t get_init_pc_override()
   return static_cast<uint32_t>(v);
 }
 
+static const char* get_thread_profile()
+{
+  const char* ev = std::getenv("AJIT_THREAD_PROFILE");
+  if (ev == nullptr || ev[0] == '\0') {
+    return nullptr;
+  }
+  return ev;
+}
+
+static const char* get_thread_config_file()
+{
+  const char* ev = std::getenv("AJIT_THREAD_CONFIG_FILE");
+  if (ev != nullptr && ev[0] != '\0') {
+    return ev;
+  }
+  const char* profile = get_thread_profile();
+  if (profile != nullptr && !std::strcmp(profile, "krishna")) {
+    return "krishna.config";
+  }
+  return nullptr;
+}
+
+static bool get_config_value_raw(const char* name, char* out, size_t out_sz)
+{
+  const char* path = get_thread_config_file();
+  if (path == nullptr) {
+    return false;
+  }
+  FILE* fp = std::fopen(path, "r");
+  if (fp == nullptr) {
+    return false;
+  }
+
+  bool found = false;
+  char line[256];
+  while (std::fgets(line, sizeof(line), fp) != nullptr) {
+    trim_in_place(line);
+    if (line[0] == '\0' || line[0] == '#') {
+      continue;
+    }
+    char* hash = std::strchr(line, '#');
+    if (hash != nullptr) {
+      *hash = '\0';
+      trim_in_place(line);
+    }
+    char* eq = std::strchr(line, '=');
+    if (eq == nullptr) {
+      continue;
+    }
+    *eq = '\0';
+    char* key = line;
+    char* value = eq + 1;
+    trim_in_place(key);
+    trim_in_place(value);
+    if (!std::strcmp(key, name)) {
+      std::snprintf(out, out_sz, "%s", value);
+      found = true;
+      break;
+    }
+  }
+  std::fclose(fp);
+  return found;
+}
+
+static bool get_env_or_config_raw(const char* name, char* out, size_t out_sz)
+{
+  const char* ev = std::getenv(name);
+  if (ev != nullptr && ev[0] != '\0') {
+    std::snprintf(out, out_sz, "%s", ev);
+    return true;
+  }
+  return get_config_value_raw(name, out, out_sz);
+}
+
 static int get_active_threads_override()
 {
-  const char* ev = std::getenv("AJIT_ACTIVE_THREADS");
-  if (ev == nullptr || ev[0] == '\0') {
+  char raw[64] = {};
+  if (!get_env_or_config_raw("AJIT_ACTIVE_THREADS", raw, sizeof(raw))) {
     return 8;
   }
   char* endp = nullptr;
-  long v = std::strtol(ev, &endp, 0);
-  if (endp == ev || v <= 0) {
-    std::fprintf(stderr, "BRIDGE: invalid AJIT_ACTIVE_THREADS='%s', using 8\n", ev);
+  long v = std::strtol(raw, &endp, 0);
+  if (endp == raw || v <= 0) {
+    std::fprintf(stderr, "BRIDGE: invalid AJIT_ACTIVE_THREADS='%s', using 8\n", raw);
     return 8;
   }
   if (v > 8) v = 8;
@@ -125,14 +231,14 @@ static int get_active_threads_override()
 
 static int get_num_cores_override()
 {
-  const char* ev = std::getenv("AJIT_NUM_CORES");
-  if (ev == nullptr || ev[0] == '\0') {
+  char raw[64] = {};
+  if (!get_env_or_config_raw("AJIT_NUM_CORES", raw, sizeof(raw))) {
     return kMaxCores;
   }
   char* endp = nullptr;
-  long v = std::strtol(ev, &endp, 0);
-  if (endp == ev || v <= 0) {
-    std::fprintf(stderr, "BRIDGE: invalid AJIT_NUM_CORES='%s', using %d\n", ev, kMaxCores);
+  long v = std::strtol(raw, &endp, 0);
+  if (endp == raw || v <= 0) {
+    std::fprintf(stderr, "BRIDGE: invalid AJIT_NUM_CORES='%s', using %d\n", raw, kMaxCores);
     return kMaxCores;
   }
   if (v > kMaxCores) v = kMaxCores;
@@ -141,17 +247,70 @@ static int get_num_cores_override()
 
 static int get_threads_per_core_override()
 {
-  const char* ev = std::getenv("AJIT_THREADS_PER_CORE");
-  if (ev == nullptr || ev[0] == '\0') {
+  char raw[64] = {};
+  if (!get_env_or_config_raw("AJIT_THREADS_PER_CORE", raw, sizeof(raw))) {
     return 2;
   }
   char* endp = nullptr;
-  long v = std::strtol(ev, &endp, 0);
-  if (endp == ev || (v != 1 && v != 2)) {
-    std::fprintf(stderr, "BRIDGE: invalid AJIT_THREADS_PER_CORE='%s', using 2\n", ev);
+  long v = std::strtol(raw, &endp, 0);
+  if (endp == raw || (v != 1 && v != 2)) {
+    std::fprintf(stderr, "BRIDGE: invalid AJIT_THREADS_PER_CORE='%s', using 2\n", raw);
     return 2;
   }
   return (int) v;
+}
+
+static uint32_t get_uint32_env(const char* name, uint32_t default_val)
+{
+  char raw[128] = {};
+  const char* ev = std::getenv(name);
+  if (ev == nullptr || ev[0] == '\0') {
+    if (!get_config_value_raw(name, raw, sizeof(raw))) {
+      return default_val;
+    }
+    ev = raw;
+  }
+  char* endp = nullptr;
+  unsigned long v = std::strtoul(ev, &endp, 0);
+  if (endp == ev) {
+    std::fprintf(stderr, "BRIDGE: invalid %s='%s', using %u\n", name, ev, default_val);
+    return default_val;
+  }
+  return static_cast<uint32_t>(v);
+}
+
+static uint32_t get_uint32_env_min1(const char* name, uint32_t default_val)
+{
+  char raw[128] = {};
+  const char* ev = std::getenv(name);
+  if (ev == nullptr || ev[0] == '\0') {
+    if (!get_config_value_raw(name, raw, sizeof(raw))) {
+      return default_val;
+    }
+    ev = raw;
+  }
+  char* endp = nullptr;
+  unsigned long v = std::strtoul(ev, &endp, 0);
+  if (endp == ev || v == 0) {
+    std::fprintf(stderr, "BRIDGE: invalid %s='%s', using %u\n", name, ev, default_val);
+    return default_val;
+  }
+  return static_cast<uint32_t>(v);
+}
+
+static uint32_t get_tlb_override(const char* name, uint32_t default_val)
+{
+  return get_uint32_env(name, default_val);
+}
+
+static uint32_t get_isa_mode_override()
+{
+  uint32_t isa = get_uint32_env("AJIT_THREAD_ISA_MODE", 32);
+  if (isa != 32 && isa != 64) {
+    std::fprintf(stderr, "BRIDGE: invalid AJIT_THREAD_ISA_MODE='%u', using 32\n", isa);
+    return 32;
+  }
+  return isa;
 }
 
 static void init_topology_config_once()
@@ -553,7 +712,39 @@ static int bridge_do_init()
     init_topology_config_once();
     init_active_slot_config_once();
     uint32_t init_pc = get_init_pc_override();
+    uint32_t isa_mode = get_isa_mode_override();
+    uint32_t bp_table_size = get_uint32_env_min1("AJIT_THREAD_BP_TABLE_SIZE", 16);
+    uint32_t icache_number_of_lines = get_uint32_env_min1("AJIT_THREAD_ICACHE_NUMBER_OF_LINES", 512);
+    uint32_t icache_associativity = get_uint32_env_min1("AJIT_THREAD_ICACHE_ASSOCIATIVITY", 1);
+    uint32_t dcache_number_of_lines = get_uint32_env_min1("AJIT_THREAD_DCACHE_NUMBER_OF_LINES", 512);
+    uint32_t dcache_associativity = get_uint32_env_min1("AJIT_THREAD_DCACHE_ASSOCIATIVITY", 1);
+    uint32_t tlb0_log_mem_size = get_tlb_override("AJIT_THREAD_TLB0_LOG_MEM_SIZE", 1);
+    uint32_t tlb0_log_set_size = get_tlb_override("AJIT_THREAD_TLB0_LOG_SET_SIZE", 1);
+    uint32_t tlb1_log_mem_size = get_tlb_override("AJIT_THREAD_TLB1_LOG_MEM_SIZE", 3);
+    uint32_t tlb1_log_set_size = get_tlb_override("AJIT_THREAD_TLB1_LOG_SET_SIZE", 3);
+    uint32_t tlb2_log_mem_size = get_tlb_override("AJIT_THREAD_TLB2_LOG_MEM_SIZE", 4);
+    uint32_t tlb2_log_set_size = get_tlb_override("AJIT_THREAD_TLB2_LOG_SET_SIZE", 4);
+    uint32_t tlb3_log_mem_size = get_tlb_override("AJIT_THREAD_TLB3_LOG_MEM_SIZE", 6);
+    uint32_t tlb3_log_set_size = get_tlb_override("AJIT_THREAD_TLB3_LOG_SET_SIZE", 3);
     std::fprintf(stderr, "BRIDGE: using init_pc=0x%08x\n", init_pc);
+    std::fprintf(stderr,
+                 "BRIDGE: thread cfg isa_mode=%u bp_table_size=%u icache(lines=%u assoc=%u) dcache(lines=%u assoc=%u)\n",
+                 isa_mode,
+                 bp_table_size,
+                 icache_number_of_lines,
+                 icache_associativity,
+                 dcache_number_of_lines,
+                 dcache_associativity);
+    std::fprintf(stderr,
+                 "BRIDGE: tlb cfg tlb0(mem=%u set=%u) tlb1(mem=%u set=%u) tlb2(mem=%u set=%u) tlb3(mem=%u set=%u)\n",
+                 tlb0_log_mem_size,
+                 tlb0_log_set_size,
+                 tlb1_log_mem_size,
+                 tlb1_log_set_size,
+                 tlb2_log_mem_size,
+                 tlb2_log_set_size,
+                 tlb3_log_mem_size,
+                 tlb3_log_set_size);
 
     for (int core_id = 0; core_id < kMaxCores; core_id++) {
       g_cores[core_id] = nullptr;
@@ -561,12 +752,20 @@ static int bridge_do_init()
     for (int core_id = 0; core_id < g_num_cores; core_id++) {
       g_cores[core_id] = makeCoreState((uint32_t) core_id,
                                        (uint32_t) g_threads_per_core,
-                                       32,   // u_mode default
-                                       16,   // bp_table_size default
-                                       512,  // icache lines default
-                                       1,    // icache associativity default
-                                       512,  // dcache lines default
-                                       1,    // dcache associativity default
+                                       isa_mode,
+                                       bp_table_size,
+                                       icache_number_of_lines,
+                                       icache_associativity,
+                                       dcache_number_of_lines,
+                                       dcache_associativity,
+                                       tlb0_log_mem_size,
+                                       tlb0_log_set_size,
+                                       tlb1_log_mem_size,
+                                       tlb1_log_set_size,
+                                       tlb2_log_mem_size,
+                                       tlb2_log_set_size,
+                                       tlb3_log_mem_size,
+                                       tlb3_log_set_size,
                                        0,    // report_traps default
                                        init_pc);
       if (g_cores[core_id] == nullptr) {

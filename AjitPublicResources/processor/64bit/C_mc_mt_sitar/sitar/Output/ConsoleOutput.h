@@ -4,7 +4,7 @@
 	//======================================
 	//file ConsoleOutput.h                                                  
 	//Describes module ConsoleOutput                                      
-	//Auto-generated from input file "memorytop.sitar" on 2026-4-16 at time 12:26:36   
+	//Auto-generated from input file "memorytop.sitar" on 2026-7-19 at time 22:6:27   
 	 //(This design unit is parameterized. Generating code into a .h file only) 
 	
 	//======================================
@@ -16,7 +16,7 @@
 	#include"sitar_time.h"
 	//user included files
 	 
-//----code block from file memorytop.sitar, line:1054 ----
+//----code block from file memorytop.sitar, line:1082 ----
 extern "C" {
 		#include "ajit_memory_shim.h"
 		#include "bridge_module_helpers.h"
@@ -60,7 +60,7 @@ extern "C" {
 inport<8> console_tx_data;
 inport<8> console_tx_valid;
 outport<8> console_tx_ack;
-//----code block from file memorytop.sitar, line:1060 ----
+//----code block from file memorytop.sitar, line:1088 ----
 uint8_t tx_data; uint8_t tx_valid; uint8_t ack_value; bool saw_valid;
 //----end code block-------
 
@@ -143,7 +143,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:1063 ----
+//----code block from file memorytop.sitar, line:1091 ----
 
 	tx_data = 0;
 	tx_valid = 0;
@@ -157,7 +157,7 @@ case 0:
 
 case 1 :
 {
-//do-while statement , line:1069
+//do-while statement , line:1097
  int _dowhile_iteration;
 for(_dowhile_iteration=1; _dowhile_iteration<=SITAR_ITERATION_LIMIT; _dowhile_iteration++)
 {
@@ -168,7 +168,7 @@ switch(_pointer[1])
 case 0:
 {
 
-//if statement , line:1070
+//if statement , line:1098
 if(((((((current_time.phase()))==(0))))))
 _if_flag[0]=true;
 else
@@ -189,7 +189,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:1071 ----
+//----code block from file memorytop.sitar, line:1099 ----
 signal_pull_u8(&console_tx_data, &tx_data);
 			signal_pull_u8(&console_tx_valid, &tx_valid);
 			if((tx_valid != 0) && !saw_valid) {
@@ -220,7 +220,7 @@ case 0:
 { 
  
 //code_block_statement 
-//----code block from file memorytop.sitar, line:1082 ----
+//----code block from file memorytop.sitar, line:1110 ----
 signal_push_u8(&console_tx_ack, ack_value);
 			ack_value = 0;
 //----end code block-------
@@ -252,7 +252,7 @@ if((_if_flag[0]==true && _pointer[2]>=_pointer_last_value[2]) || (_if_flag[0]==f
 case 2:
 {
 
-//wait-for -time statement , line:1085
+//wait-for -time statement , line:1113
 _timer[0] = sitar::time(current_time)+sitar::time(((0)),((1)));
  _incrementPointer(1);
 }
@@ -286,7 +286,7 @@ else break; //sequence has terminated
 	{                                                                                               
 		//iteration limit exceeded. Throw error and                                             
 		//terminate the do-while statement                                                      
- 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:1069 in file memorytop.sitar";
+ 		std::cerr<<"\nERROR:Iteration limit exceeded for do-while loop on line:1097 in file memorytop.sitar";
 		_pointer[1]=0;                                                               
 		_incrementPointer(0);                                                                    
 	}                                                                                              

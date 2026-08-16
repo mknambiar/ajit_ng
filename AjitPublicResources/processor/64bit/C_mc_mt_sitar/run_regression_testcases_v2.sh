@@ -709,6 +709,7 @@ for id in "${SELECTED_IDS[@]}"; do
     AJIT_CONSOLE_INPUT_FILE="${console_input_file}" \
     AJIT_CONSOLE_OUTPUT_FILE="${console_actual_output}" \
     AJIT_CONSOLE_INPUT_PACED="${console_input_paced}" \
+    AJIT_RDASR_USES_SITAR_TIME=1 \
     AJIT_NUM_CORES="${cfg_num_cores}" \
     AJIT_THREADS_PER_CORE="${cfg_threads_per_core}" \
     AJIT_INIT_PC="${cfg_init_pc}" \

@@ -5,34 +5,91 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SITAR_DIR="${ROOT_DIR}/sitar"
 REPO_ROOT="${ROOT_DIR}/../../../.."
 RUN_CYCLES="${1:-40000}"
+THREAD_PROFILE="${AJIT_THREAD_PROFILE:-}"
+THREAD_CONFIG_FILE="${AJIT_THREAD_CONFIG_FILE:-}"
+EXPECT_RESULTS_FILE=""
+EXPECT_MEM_ADDRS=""
+
+load_thread_profile_config() {
+  local cfg="$1"
+  local line key value
+  [[ -f "${cfg}" ]] || return 0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line="${line%%#*}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "${line}" ]] && continue
+    [[ "${line}" != *"="* ]] && continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    [[ "${key}" == AJIT_* ]] || continue
+    current_value="${!key-}"
+    if [[ -z "${current_value}" ]]; then
+      printf -v "${key}" '%s' "${value}"
+      export "${key}"
+    fi
+  done < "${cfg}"
+}
+
+if [[ ! -d "${SITAR_DIR}" ]]; then
+  echo "ERROR: sitar directory not found at ${SITAR_DIR}" >&2
+  exit 1
+fi
+
+if [[ "${THREAD_PROFILE}" == "krishna" && -z "${THREAD_CONFIG_FILE}" ]]; then
+  THREAD_CONFIG_FILE="${SITAR_DIR}/krishna.config"
+fi
+if [[ -n "${THREAD_CONFIG_FILE}" ]]; then
+  if [[ -f "${THREAD_CONFIG_FILE}" ]]; then
+    load_thread_profile_config "${THREAD_CONFIG_FILE}"
+    export AJIT_THREAD_PROFILE="${THREAD_PROFILE}"
+    export AJIT_THREAD_CONFIG_FILE="${THREAD_CONFIG_FILE}"
+  else
+    echo "WARN: thread config file not found at ${THREAD_CONFIG_FILE}" >&2
+  fi
+fi
+
 TA0_STOP_MODE="${AJIT_STOP_ON_TA0:-off}"
 TA0_DUMP_REGS="${AJIT_DUMP_REGS_ON_TA0:-1}"
 END_DUMP_REGS="${AJIT_DUMP_REGS_ON_SUMMARY:-1}"
 ACTIVE_THREADS_REQ="${AJIT_ACTIVE_THREADS:-auto}"
 SKIP_BUILD="${AJIT_SKIP_BUILD:-0}"
 SKIP_CHECK="${AJIT_SKIP_CHECK:-0}"
-ACTIVE_THREADS_RESOLVED=""
-NUM_CORES_REQ="${AJIT_NUM_CORES:-4}"
-NUM_CORES_RESOLVED=4
-MAX_MODEL_THREADS=8
+FORCE_REBUILD="${AJIT_FORCE_REBUILD:-0}"
 TRACE_W="${AJIT_TRACE_W:-}"
 TRACE_E="${AJIT_TRACE_E:-}"
 TRACE_F="${AJIT_TRACE_F:-}"
 L2_CACHE_LINES="${AJIT_L2_CACHE_LINES:-}"
 L2_ASSOC="${AJIT_L2_ASSOC:-}"
 TRACE_L2="${AJIT_TRACE_L2:-}"
+MEMORY_DELAY="${AJIT_MEMORY_DELAY:-}"
+NUM_CORES_REQ="${AJIT_NUM_CORES:-4}"
+NUM_CORES_RESOLVED=4
+MAX_MODEL_THREADS=8
 THREADS_PER_CORE_REQ="${AJIT_THREADS_PER_CORE:-2}"
 THREADS_PER_CORE_RESOLVED=2
-EXPECT_RESULTS_FILE=""
-EXPECT_MEM_ADDRS=""
+THREAD_DESCRIPTOR_WORD="${AJIT_THREAD_DESCRIPTOR_WORD:-}"
+THREAD_ISA_MODE="${AJIT_THREAD_ISA_MODE:-}"
+THREAD_BP_TABLE_SIZE="${AJIT_THREAD_BP_TABLE_SIZE:-}"
+THREAD_ICACHE_LINES="${AJIT_THREAD_ICACHE_NUMBER_OF_LINES:-}"
+THREAD_ICACHE_ASSOC="${AJIT_THREAD_ICACHE_ASSOCIATIVITY:-}"
+THREAD_DCACHE_LINES="${AJIT_THREAD_DCACHE_NUMBER_OF_LINES:-}"
+THREAD_DCACHE_ASSOC="${AJIT_THREAD_DCACHE_ASSOCIATIVITY:-}"
+THREAD_TLB0_LOG_MEM_SIZE="${AJIT_THREAD_TLB0_LOG_MEM_SIZE:-}"
+THREAD_TLB0_LOG_SET_SIZE="${AJIT_THREAD_TLB0_LOG_SET_SIZE:-}"
+THREAD_TLB1_LOG_MEM_SIZE="${AJIT_THREAD_TLB1_LOG_MEM_SIZE:-}"
+THREAD_TLB1_LOG_SET_SIZE="${AJIT_THREAD_TLB1_LOG_SET_SIZE:-}"
+THREAD_TLB2_LOG_MEM_SIZE="${AJIT_THREAD_TLB2_LOG_MEM_SIZE:-}"
+THREAD_TLB2_LOG_SET_SIZE="${AJIT_THREAD_TLB2_LOG_SET_SIZE:-}"
+THREAD_TLB3_LOG_MEM_SIZE="${AJIT_THREAD_TLB3_LOG_MEM_SIZE:-}"
+THREAD_TLB3_LOG_SET_SIZE="${AJIT_THREAD_TLB3_LOG_SET_SIZE:-}"
 CONSOLE_INPUT_FILE="${AJIT_CONSOLE_INPUT_FILE:-}"
 CONSOLE_OUTPUT_FILE="${AJIT_CONSOLE_OUTPUT_FILE:-}"
 INIT_PC="${AJIT_INIT_PC:-}"
-
-if [[ ! -d "${SITAR_DIR}" ]]; then
-  echo "ERROR: sitar directory not found at ${SITAR_DIR}" >&2
-  exit 1
-fi
 
 if ! [[ "${NUM_CORES_REQ}" =~ ^[0-9]+$ ]]; then
   NUM_CORES_REQ=4
@@ -172,14 +229,22 @@ fi
 
 echo "[flow 1/3] build"
 echo "[cfg] AJIT_NUM_CORES=${NUM_CORES_RESOLVED} MAX_MODEL_THREADS=${MAX_MODEL_THREADS}"
-if [[ "${SKIP_BUILD}" == "1" ]]; then
+if [[ "${FORCE_REBUILD}" == "1" ]]; then
+  echo "[build] forced rebuild (AJIT_FORCE_REBUILD=1)"
+  AJIT_NUM_CORES="${NUM_CORES_RESOLVED}" "${ROOT_DIR}/build_sitar.sh"
+elif [[ "${SKIP_BUILD}" == "1" ]]; then
   if [[ ! -x "${SITAR_DIR}/sitar_sim" ]]; then
     echo "ERROR: AJIT_SKIP_BUILD=1 but ${SITAR_DIR}/sitar_sim is missing or not executable." >&2
     exit 1
   fi
   echo "[build] skipped (AJIT_SKIP_BUILD=1)"
 else
-  AJIT_NUM_CORES="${NUM_CORES_RESOLVED}" "${ROOT_DIR}/build_sitar.sh"
+  if [[ -x "${SITAR_DIR}/sitar_sim" ]]; then
+    echo "[build] skipped (existing sitar_sim; set AJIT_FORCE_REBUILD=1 to rebuild)"
+  else
+    echo "[build] sitar_sim missing; building once"
+    AJIT_NUM_CORES="${NUM_CORES_RESOLVED}" "${ROOT_DIR}/build_sitar.sh"
+  fi
 fi
 
 echo "[flow 2/3] run"
@@ -193,6 +258,12 @@ if [[ -n "${TRACE_W}" || -n "${TRACE_E}" || -n "${TRACE_F}" ]]; then
 fi
 if [[ -n "${L2_CACHE_LINES}" || -n "${L2_ASSOC}" || -n "${TRACE_L2}" ]]; then
   echo "[cfg] AJIT_L2_CACHE_LINES=${L2_CACHE_LINES:-<default>} AJIT_L2_ASSOC=${L2_ASSOC:-<default>} AJIT_TRACE_L2=${TRACE_L2:-<off>}"
+fi
+if [[ -n "${MEMORY_DELAY}" ]]; then
+  echo "[cfg] AJIT_MEMORY_DELAY=${MEMORY_DELAY}"
+fi
+if [[ -n "${THREAD_DESCRIPTOR_WORD}" || -n "${THREAD_ISA_MODE}" || -n "${THREAD_BP_TABLE_SIZE}" || -n "${THREAD_ICACHE_LINES}" || -n "${THREAD_ICACHE_ASSOC}" || -n "${THREAD_DCACHE_LINES}" || -n "${THREAD_DCACHE_ASSOC}" || -n "${THREAD_TLB0_LOG_MEM_SIZE}" || -n "${THREAD_TLB0_LOG_SET_SIZE}" || -n "${THREAD_TLB1_LOG_MEM_SIZE}" || -n "${THREAD_TLB1_LOG_SET_SIZE}" || -n "${THREAD_TLB2_LOG_MEM_SIZE}" || -n "${THREAD_TLB2_LOG_SET_SIZE}" || -n "${THREAD_TLB3_LOG_MEM_SIZE}" || -n "${THREAD_TLB3_LOG_SET_SIZE}" ]]; then
+  echo "[cfg] AJIT_THREAD_DESCRIPTOR_WORD=${THREAD_DESCRIPTOR_WORD:-<default>} AJIT_THREAD_ISA_MODE=${THREAD_ISA_MODE:-<default>} AJIT_THREAD_BP_TABLE_SIZE=${THREAD_BP_TABLE_SIZE:-<default>} AJIT_THREAD_ICACHE_NUMBER_OF_LINES=${THREAD_ICACHE_LINES:-<default>} AJIT_THREAD_ICACHE_ASSOCIATIVITY=${THREAD_ICACHE_ASSOC:-<default>} AJIT_THREAD_DCACHE_NUMBER_OF_LINES=${THREAD_DCACHE_LINES:-<default>} AJIT_THREAD_DCACHE_ASSOCIATIVITY=${THREAD_DCACHE_ASSOC:-<default>} AJIT_THREAD_TLB0_LOG_MEM_SIZE=${THREAD_TLB0_LOG_MEM_SIZE:-<default>} AJIT_THREAD_TLB0_LOG_SET_SIZE=${THREAD_TLB0_LOG_SET_SIZE:-<default>} AJIT_THREAD_TLB1_LOG_MEM_SIZE=${THREAD_TLB1_LOG_MEM_SIZE:-<default>} AJIT_THREAD_TLB1_LOG_SET_SIZE=${THREAD_TLB1_LOG_SET_SIZE:-<default>} AJIT_THREAD_TLB2_LOG_MEM_SIZE=${THREAD_TLB2_LOG_MEM_SIZE:-<default>} AJIT_THREAD_TLB2_LOG_SET_SIZE=${THREAD_TLB2_LOG_SET_SIZE:-<default>} AJIT_THREAD_TLB3_LOG_MEM_SIZE=${THREAD_TLB3_LOG_MEM_SIZE:-<default>} AJIT_THREAD_TLB3_LOG_SET_SIZE=${THREAD_TLB3_LOG_SET_SIZE:-<default>}"
 fi
 if [[ -n "${CONSOLE_INPUT_FILE}" ]]; then
   echo "[cfg] AJIT_CONSOLE_INPUT_FILE=${CONSOLE_INPUT_FILE}"
@@ -213,12 +284,29 @@ AJIT_DUMP_MEMORY_ON_TA0="$([ -n "${EXPECT_MEM_ADDRS}" ] && echo 1 || echo 0)" \
 AJIT_EXPECT_MEM_ADDRS="${EXPECT_MEM_ADDRS}" \
 AJIT_CONSOLE_INPUT_FILE="${CONSOLE_INPUT_FILE}" \
 AJIT_CONSOLE_OUTPUT_FILE="${CONSOLE_OUTPUT_FILE}" \
+AJIT_RDASR_USES_SITAR_TIME=1 \
 AJIT_TRACE_W="${TRACE_W}" \
 AJIT_TRACE_E="${TRACE_E}" \
 AJIT_TRACE_F="${TRACE_F}" \
 AJIT_L2_CACHE_LINES="${L2_CACHE_LINES}" \
 AJIT_L2_ASSOC="${L2_ASSOC}" \
 AJIT_TRACE_L2="${TRACE_L2}" \
+AJIT_MEMORY_DELAY="${MEMORY_DELAY}" \
+AJIT_THREAD_DESCRIPTOR_WORD="${THREAD_DESCRIPTOR_WORD}" \
+AJIT_THREAD_ISA_MODE="${THREAD_ISA_MODE}" \
+AJIT_THREAD_BP_TABLE_SIZE="${THREAD_BP_TABLE_SIZE}" \
+AJIT_THREAD_ICACHE_NUMBER_OF_LINES="${THREAD_ICACHE_LINES}" \
+AJIT_THREAD_ICACHE_ASSOCIATIVITY="${THREAD_ICACHE_ASSOC}" \
+AJIT_THREAD_DCACHE_NUMBER_OF_LINES="${THREAD_DCACHE_LINES}" \
+AJIT_THREAD_DCACHE_ASSOCIATIVITY="${THREAD_DCACHE_ASSOC}" \
+AJIT_THREAD_TLB0_LOG_MEM_SIZE="${THREAD_TLB0_LOG_MEM_SIZE}" \
+AJIT_THREAD_TLB0_LOG_SET_SIZE="${THREAD_TLB0_LOG_SET_SIZE}" \
+AJIT_THREAD_TLB1_LOG_MEM_SIZE="${THREAD_TLB1_LOG_MEM_SIZE}" \
+AJIT_THREAD_TLB1_LOG_SET_SIZE="${THREAD_TLB1_LOG_SET_SIZE}" \
+AJIT_THREAD_TLB2_LOG_MEM_SIZE="${THREAD_TLB2_LOG_MEM_SIZE}" \
+AJIT_THREAD_TLB2_LOG_SET_SIZE="${THREAD_TLB2_LOG_SET_SIZE}" \
+AJIT_THREAD_TLB3_LOG_MEM_SIZE="${THREAD_TLB3_LOG_MEM_SIZE}" \
+AJIT_THREAD_TLB3_LOG_SET_SIZE="${THREAD_TLB3_LOG_SET_SIZE}" \
 "${ROOT_DIR}/run_sitar.sh" "${RUN_CYCLES}"
 
 echo "=== Bridge mode messages (run.err) ==="

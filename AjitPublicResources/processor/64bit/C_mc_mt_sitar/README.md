@@ -217,6 +217,8 @@ Useful environment variables:
 - `AJIT_NUM_CORES=<1..4>`: simulator core count used at build/run time
 - `AJIT_THREADS_PER_CORE=1|2`: runtime bridge topology, and used by regression when selecting a topology
 - `AJIT_ACTIVE_THREADS=<n|auto>`: active simulator threads for the run
+- `AJIT_THREAD_PROFILE=krishna`: load the Krishna/FPGA-like thread profile from `sitar/krishna.config`
+- `AJIT_THREAD_CONFIG_FILE=<path>`: load an explicit thread profile config file; this overrides the profile default path
 - `AJIT_TEST_MEMMAP=<path>`: explicit mmap file to load
 - `AJIT_EXPECT_RESULTS_FILE=<path>`: expected results file to compare against
 - `AJIT_TIMER_TICK_DIV=<n>`: cycle divider used by `memorytop.sitar` for timer pacing
@@ -225,6 +227,11 @@ Useful environment variables:
 - `AJIT_DUMP_REGS_ON_TA0=1`: dump registers when TA0 is hit
 - `AJIT_DUMP_REGS_ON_SUMMARY=1`: dump registers at end of run
 - `AJIT_TRACE_W`, `AJIT_TRACE_E`, `AJIT_TRACE_F`: enable extra tracing
+
+Thread profile config files only set simulator configuration knobs such as
+core/thread count, descriptor word, cache/TLB parameters, and memory delay.
+They do not select the benchmark program; the program still comes from
+`AJIT_TEST_MEMMAP` or the selected registry testcase.
 
 Outputs from a single run:
 
