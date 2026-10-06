@@ -5,7 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SITAR_DIR="${ROOT_DIR}/sitar"
 AJIT_SRC_ROOT="${ROOT_DIR}/../C_multi_core_multi_thread"
 REPO_ROOT="${ROOT_DIR}/../../../.."
-LOCAL_SITAR_BIN="${REPO_ROOT}/.codex-tmp/sitar-master-local/scripts/sitar"
+SITAR_BIN="${SITAR_BIN:-$(command -v sitar || true)}"
+if [[ -z "${SITAR_BIN}" || ! -x "${SITAR_BIN}" ]]; then
+  echo "ERROR: install SiTAR and put sitar on PATH, or set SITAR_BIN to its executable." >&2
+  exit 1
+fi
+# Resolve compiler helpers alongside the selected GCC, including toolset symlinks.
+HOST_COMPILER_DIR="$(dirname "$(readlink -f "$(command -v g++)")")"
 NUM_CORES_REQ="${AJIT_NUM_CORES:-4}"
 
 if [[ ! -d "${SITAR_DIR}" ]]; then
@@ -53,11 +59,7 @@ AJIT_CORE_INCLUDE_FLAGS="\
 
 cd "${SITAR_DIR}"
 
-if [[ -x "${LOCAL_SITAR_BIN}" ]]; then
-  SITAR_BIN="${LOCAL_SITAR_BIN}"
-else
-  SITAR_BIN="$(command -v sitar)"
-fi
+
 
 echo "[build 1/4] Cleaning generated Output/*"
 rm -rf Output/*
@@ -92,7 +94,7 @@ if ! "${SITAR_BIN}" compile \
   -d . \
   -m ../sitar_default_main.cpp \
   --openmp "${SITAR_LOGGING_ARGS[@]}" \
-  --cflags "-B /opt/rh/gcc-toolset-11/root/usr/bin -D SW -D SITAR_NUM_CORES=${SITAR_NUM_CORES_RESOLVED} -D SITAR_NUMT=${SITAR_NUMT_RESOLVED} -DUSE_NEW_TLB -std=c++20 -O2 -Wall -Wextra -I../shim -I../ajit_thread/include -I../memory -I../aes_block/include -I../swizzler/include ${AJIT_CORE_INCLUDE_FLAGS}" \
+  --cflags "-B ${HOST_COMPILER_DIR}/ ${AJIT_HOST_CFLAGS:-} -D SW -D SITAR_NUM_CORES=${SITAR_NUM_CORES_RESOLVED} -D SITAR_NUMT=${SITAR_NUMT_RESOLVED} -DUSE_NEW_TLB -std=c++20 -O2 -Wall -Wextra -I../shim -I../ajit_thread/include -I../memory -I../aes_block/include -I../swizzler/include ${AJIT_CORE_INCLUDE_FLAGS}" \
   > "${LOG_DIR}/compile_${STAMP}.log" 2>&1; then
   echo "ERROR: sitar compile failed. See ${LOG_DIR}/compile_${STAMP}.log" >&2
   tail -n 200 "${LOG_DIR}/compile_${STAMP}.log" || true

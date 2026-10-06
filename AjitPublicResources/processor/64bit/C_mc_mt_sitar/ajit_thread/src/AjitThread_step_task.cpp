@@ -42,6 +42,166 @@ extern int global_stat_collection_trigger_pc;
 
 namespace {
 
+struct RegionCounterSnapshot {
+  bool valid = false;
+  uint64_t instructions = 0;
+  uint32_t traps = 0;
+  uint32_t cti = 0;
+  uint32_t bp_mispredicts = 0;
+  uint32_t ras_push = 0;
+  uint32_t ras_pop = 0;
+  uint32_t ras_mispredicts = 0;
+  uint64_t icache_accesses = 0;
+  uint64_t icache_misses = 0;
+  uint64_t icache_flushes = 0;
+  uint64_t dcache_accesses = 0;
+  uint64_t dcache_misses = 0;
+  uint64_t dcache_read_misses = 0;
+  uint64_t dcache_write_misses = 0;
+  uint64_t dcache_flushes = 0;
+  uint64_t cycle_estimate = 0;
+  uint64_t sitar_sim_time = 0;
+};
+
+struct RegionCounterState {
+  bool initialized = false;
+  bool enabled = false;
+  uint32_t start_pc = 0;
+  uint32_t end_pc = 0;
+  RegionCounterSnapshot start;
+  RegionCounterSnapshot end;
+};
+
+RegionCounterState g_region_counter_state[64];
+std::mutex g_region_counter_mu;
+
+void initRegionCounterStateOnce(RegionCounterState* rcs)
+{
+  if (rcs->initialized) {
+    return;
+  }
+
+  const char* start_env = std::getenv("AJIT_REGION_COUNTERS_START_PC");
+  const char* end_env = std::getenv("AJIT_REGION_COUNTERS_END_PC");
+  if (start_env && end_env && start_env[0] && end_env[0]) {
+    char* endp = nullptr;
+    unsigned long start_pc = std::strtoul(start_env, &endp, 0);
+    if (endp != start_env) {
+      endp = nullptr;
+      unsigned long end_pc = std::strtoul(end_env, &endp, 0);
+      if (endp != end_env) {
+        rcs->enabled = true;
+        rcs->start_pc = (uint32_t) start_pc;
+        rcs->end_pc = (uint32_t) end_pc;
+      }
+    }
+  }
+  rcs->initialized = true;
+}
+
+uint32_t regionCounterIndex(const ThreadState* s)
+{
+  return (((s->core_id & 0x7u) << 3) | (s->thread_id & 0x7u));
+}
+
+void captureRegionCounterSnapshot(ThreadState* s, RegionCounterSnapshot* snap)
+{
+  snap->valid = true;
+  snap->instructions = s->num_instructions_executed;
+  snap->traps = s->num_traps;
+  snap->cti = s->branch_predictor.branch_count;
+  snap->bp_mispredicts = s->branch_predictor.mispredicts;
+  snap->ras_push = s->return_address_stack.push_count;
+  snap->ras_pop = s->return_address_stack.pop_count;
+  snap->ras_mispredicts = s->return_address_stack.mispredicts;
+  snap->icache_accesses = s->icache->number_of_accesses;
+  snap->icache_misses = s->icache->number_of_misses;
+  snap->icache_flushes = s->icache->number_of_flushes;
+  snap->dcache_accesses = s->dcache->number_of_accesses;
+  snap->dcache_misses = s->dcache->number_of_misses;
+  snap->dcache_read_misses = s->dcache->number_of_read_misses;
+  snap->dcache_write_misses = s->dcache->number_of_write_misses;
+  snap->dcache_flushes = s->dcache->number_of_flushes;
+  snap->cycle_estimate = getCycleEstimate(s);
+  snap->sitar_sim_time = s->sitar_sim_time;
+}
+
+void printRegionCounterSnapshot(const char* tag, const ThreadState* s,
+                                uint32_t pc, const RegionCounterSnapshot& snap)
+{
+  std::fprintf(stderr,
+               "SITAR-REGION-COUNTERS-%s t%u c%u pc=0x%08x "
+               "instructions=%llu traps=%u cti=%u bp-mispredicts=%u "
+               "ras-push=%u ras-pop=%u ras-mispredicts=%u "
+               "icache-accesses=%llu icache-misses=%llu icache-flushes=%llu "
+               "dcache-accesses=%llu dcache-misses=%llu dcache-read-misses=%llu "
+               "dcache-write-misses=%llu dcache-flushes=%llu "
+               "cycle-estimate=%llu sitar-sim-time=%llu\n",
+               tag, s->thread_id, s->core_id, pc,
+               (unsigned long long) snap.instructions,
+               (unsigned) snap.traps,
+               (unsigned) snap.cti,
+               (unsigned) snap.bp_mispredicts,
+               (unsigned) snap.ras_push,
+               (unsigned) snap.ras_pop,
+               (unsigned) snap.ras_mispredicts,
+               (unsigned long long) snap.icache_accesses,
+               (unsigned long long) snap.icache_misses,
+               (unsigned long long) snap.icache_flushes,
+               (unsigned long long) snap.dcache_accesses,
+               (unsigned long long) snap.dcache_misses,
+               (unsigned long long) snap.dcache_read_misses,
+               (unsigned long long) snap.dcache_write_misses,
+               (unsigned long long) snap.dcache_flushes,
+               (unsigned long long) snap.cycle_estimate,
+               (unsigned long long) snap.sitar_sim_time);
+}
+
+void maybeCaptureRegionCounters(ThreadState* s, uint32_t retired_pc)
+{
+  std::lock_guard<std::mutex> guard(g_region_counter_mu);
+  RegionCounterState* rcs = &g_region_counter_state[regionCounterIndex(s)];
+  initRegionCounterStateOnce(rcs);
+  if (!rcs->enabled) {
+    return;
+  }
+
+  if ((retired_pc == rcs->start_pc) && !rcs->start.valid) {
+    captureRegionCounterSnapshot(s, &rcs->start);
+    printRegionCounterSnapshot("START", s, retired_pc, rcs->start);
+  }
+  if ((retired_pc == rcs->end_pc) && rcs->start.valid && !rcs->end.valid) {
+    captureRegionCounterSnapshot(s, &rcs->end);
+    printRegionCounterSnapshot("END", s, retired_pc, rcs->end);
+    std::fprintf(stderr,
+                 "SITAR-REGION-COUNTERS-DELTA t%u c%u start_pc=0x%08x end_pc=0x%08x "
+                 "instructions=%llu traps=%u cti=%u bp-mispredicts=%u "
+                 "ras-push=%u ras-pop=%u ras-mispredicts=%u "
+                 "icache-accesses=%llu icache-misses=%llu icache-flushes=%llu "
+                 "dcache-accesses=%llu dcache-misses=%llu dcache-read-misses=%llu "
+                 "dcache-write-misses=%llu dcache-flushes=%llu "
+                 "cycle-estimate=%llu sitar-sim-time=%llu\n",
+                 s->thread_id, s->core_id, rcs->start_pc, rcs->end_pc,
+                 (unsigned long long) (rcs->end.instructions - rcs->start.instructions),
+                 (unsigned) (rcs->end.traps - rcs->start.traps),
+                 (unsigned) (rcs->end.cti - rcs->start.cti),
+                 (unsigned) (rcs->end.bp_mispredicts - rcs->start.bp_mispredicts),
+                 (unsigned) (rcs->end.ras_push - rcs->start.ras_push),
+                 (unsigned) (rcs->end.ras_pop - rcs->start.ras_pop),
+                 (unsigned) (rcs->end.ras_mispredicts - rcs->start.ras_mispredicts),
+                 (unsigned long long) (rcs->end.icache_accesses - rcs->start.icache_accesses),
+                 (unsigned long long) (rcs->end.icache_misses - rcs->start.icache_misses),
+                 (unsigned long long) (rcs->end.icache_flushes - rcs->start.icache_flushes),
+                 (unsigned long long) (rcs->end.dcache_accesses - rcs->start.dcache_accesses),
+                 (unsigned long long) (rcs->end.dcache_misses - rcs->start.dcache_misses),
+                 (unsigned long long) (rcs->end.dcache_read_misses - rcs->start.dcache_read_misses),
+                 (unsigned long long) (rcs->end.dcache_write_misses - rcs->start.dcache_write_misses),
+                 (unsigned long long) (rcs->end.dcache_flushes - rcs->start.dcache_flushes),
+                 (unsigned long long) (rcs->end.cycle_estimate - rcs->start.cycle_estimate),
+                 (unsigned long long) (rcs->end.sitar_sim_time - rcs->start.sitar_sim_time));
+  }
+}
+
 bool shouldTracePcWindow(uint32_t pc)
 {
   static int inited = 0;
@@ -520,6 +680,7 @@ StepTaskT<int> ajit_thread(CoroutineOwner* owner, ThreadState* state_ptr)
     }
   }
   const uint8_t is_fp_op = ((inst_type == _FPop1_INS_) || (inst_type == _FPop2_INS_));
+  const uint8_t is_divide = ((opcode >= _UDIV_) && (opcode <= _SDIVcc_));
   uint8_t skip_fp_execute = (skip_decode || !is_fp_op);
   if (!skip_fp_execute) {
     uint64_t fp_penalty = 0;
@@ -572,6 +733,11 @@ StepTaskT<int> ajit_thread(CoroutineOwner* owner, ThreadState* state_ptr)
       ajit_step_exec_failures++;
       co_return 0;
     }
+    if (is_divide) {
+      state_ptr->num_iu_divs_executed++;
+      StepTask penalty = wait_penalty_cycles(owner, IU_DIV_PENALTY);
+      CO_AWAIT_OWNED(owner, penalty);
+    }
   }
   uint8_t post_execute_trap = getBit32(state_ptr->trap_vector, _TRAP_);
   uint8_t need_write_back = getBit8(flags, _NEED_WRITE_BACK_);
@@ -592,6 +758,9 @@ StepTaskT<int> ajit_thread(CoroutineOwner* owner, ThreadState* state_ptr)
     increment_instruction_count(state_ptr);
   }
   emitWriteTraceIfEnabled(state_ptr);
+  const uint32_t retired_pc = (state_ptr->reg_update_flags.pc != 0u) ?
+      state_ptr->reg_update_flags.pc : state_ptr->status_reg.pc;
+  maybeCaptureRegionCounters(state_ptr, retired_pc);
 
   uint8_t update_pc = ((!skip_execute || !skip_fp_execute) && !post_execute_trap && !is_branch);
   if (update_pc) {

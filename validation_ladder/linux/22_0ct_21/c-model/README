@@ -1,26 +1,18 @@
-Verified Linux boot image bundle for SiTAR/C-model runs.
+Linux boot image for the SiTAR serial smoke test
+================================================
 
-Contents:
-- `boot_loader_plus_kernel.mmap`
-- `kernel/kernel_objdump.txt`
+The image is downloaded separately, not committed as generated simulator output.
+Source repository: https://github.com/adhuliya/ajit-toolchain
+Branch: ajit-linux
+Path: os/Ajit_linux/linux_boot/testing_in_proress/22_0ct_21/c-model/boot_loader_plus_kernel.mmap
 
-Provenance:
-- source repository: `https://github.com/adhuliya/ajit-toolchain`
-- source branch: `ajit-linux`
-- source directory:
-  `os/Ajit_linux/linux_boot/testing_in_proress/22_0ct_21/c-model`
+From this directory, download and verify:
 
-Verification:
-- SHA-256 of `boot_loader_plus_kernel.mmap`:
-  `2bcc0ec62dbf3dac5d63c631effd10040442ffd3980e0b46e0de82ea978b78cf`
-- This hash matches the advisor-provided mmap extracted from:
-  `.codex-tmp/boot_loader_plus_kernel.mmap.tgz`
+    curl --fail --location --output boot_loader_plus_kernel.mmap https://raw.githubusercontent.com/adhuliya/ajit-toolchain/ajit-linux/os/Ajit_linux/linux_boot/testing_in_proress/22_0ct_21/c-model/boot_loader_plus_kernel.mmap
+    echo '2bcc0ec62dbf3dac5d63c631effd10040442ffd3980e0b46e0de82ea978b78cf  boot_loader_plus_kernel.mmap' | sha256sum --check
+    bash ../serial_boot_smoke/build.sh
 
-Usage notes:
-- intended init PC: `0xf0000000`
-- matching Linux symbol file:
-  `kernel/kernel_objdump.txt`
-
-Notes:
-- The matching `vmlinux` also exists in the source tree under
-  `kernel/vmlinux`, but it is not copied here yet.
+Do not use the image if hash verification fails. The build script also verifies
+this hash before staging main.mmap. The matching kernel disassembly is in
+kernel/kernel_objdump.txt. Use init PC 0xf0000000. See the modular simulator
+README for sync/async boot commands and their different cycle budgets.

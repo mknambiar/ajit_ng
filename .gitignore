@@ -86,3 +86,16 @@ build/
 *.o
 *.elf
 *.log
+
+# Simulator outputs and local development workspaces
+/.codex-tmp/
+/.codex-notes/
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/sitar/Output/
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/sitar/.build_src/
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/sitar/logs/
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/sitar/sitar_sim
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/sitar/run.*
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/sitar/main.results.sitar
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/sitar/TOP*txt
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/sitar/test_memmap*txt
+/AjitPublicResources/processor/64bit/C_mc_mt_sitar*/test_memmap*txt

@@ -1,0 +1,144 @@
+// Placeholder for modular AJIT thread module.
+//
+// Owns architectural ThreadState.
+// Emits I-cache and D-cache requests through nets.
+// Does not mutate cache or MMU state directly.
+
+module AjitThread
+	parameter int coreId = 0;
+	parameter int threadId = 0;
+
+	outport	ifetch_valid : width 1
+	outport	ifetch_kind : width 8
+	outport	ifetch_asi : width 8
+	outport	ifetch_context : width 8
+	outport	ifetch_addr : width 32
+	inport	ifetch_resp_valid : width 1
+	inport	ifetch_resp_mae : width 8
+	inport	ifetch_resp_data : width 64
+
+	outport	dcache_valid : width 1
+	outport	dcache_kind : width 8
+	outport	dcache_asi : width 8
+	outport	dcache_context : width 8
+	outport	dcache_addr : width 32
+	outport	dcache_data : width 64
+	outport	dcache_byte_mask : width 8
+	inport	dcache_resp_valid : width 1
+	inport	dcache_resp_mae : width 8
+	inport	dcache_resp_data : width 64
+	inport	irq_level : width 8
+	outport	coh_fill_kind : width 8
+	outport	coh_fill_pa_line : width 32
+	outport	coh_fill_va_line : width 32
+	inport	coh_icache_inval : width 32
+	inport	coh_dcache_inval : width 32
+	include $#include <cstdio>$
+	include $#include <cstdlib>$
+	include $extern "C" {
+		#include "modular_port_helpers.h"
+		#include "modular_instance_id.h"
+		int modular_thread_real_mode_enabled(void);
+	}
+	$
+	include $#include "modular_thread_driver.h"$
+	include $#include "ajit_thread_bridge.h"$
+
+	decl $uint8_t state; bool resp_valid; uint8_t resp_mae; uint64_t resp_data; uint32_t synth_addr;$
+	decl $bool initialized; bool real_mode; int actual_core_id; int actual_thread_id; int slot_id; ModularAjitThreadDriver* real_driver;$
+
+behavior
+	$state = 0; resp_valid = false; resp_mae = 0; resp_data = 0; synth_addr = 0;
+	initialized = false; real_mode = false; actual_core_id = coreId; actual_thread_id = threadId; slot_id = -1; real_driver = nullptr;
+	if(const char* addr_env = std::getenv("AJIT_MODULAR_SYNTH_ADDR")) {
+		char* endp = nullptr;
+		unsigned long parsed = std::strtoul(addr_env, &endp, 0);
+		if(endp != addr_env) synth_addr = (uint32_t) parsed;
+	}$;
+	do
+		$if(!initialized) {
+			if(!modular_extract_two_indices(hierarchicalId().c_str(), &actual_core_id, &actual_thread_id)) {
+				actual_core_id = coreId;
+				actual_thread_id = threadId;
+			}
+			int runtime_threads_per_core = ajit_thread_bridge_get_threads_per_core();
+			if(runtime_threads_per_core <= 0) runtime_threads_per_core = SITAR_THREADS_PER_CORE;
+			if(actual_thread_id >= 0 && actual_thread_id < runtime_threads_per_core) {
+				slot_id = (actual_core_id * runtime_threads_per_core) + actual_thread_id;
+			} else {
+				slot_id = -1;
+			}
+			real_mode = (modular_thread_real_mode_enabled() != 0);
+			if(real_mode && slot_id >= 0) {
+				real_driver = new ModularAjitThreadDriver;
+				real_driver->slot_id = slot_id;
+				real_driver->ifetch_valid = &ifetch_valid;
+				real_driver->ifetch_kind = &ifetch_kind;
+				real_driver->ifetch_asi = &ifetch_asi;
+				real_driver->ifetch_context = &ifetch_context;
+				real_driver->ifetch_addr = &ifetch_addr;
+				real_driver->ifetch_resp_valid = &ifetch_resp_valid;
+				real_driver->ifetch_resp_mae = &ifetch_resp_mae;
+				real_driver->ifetch_resp_data = &ifetch_resp_data;
+				real_driver->dcache_valid = &dcache_valid;
+				real_driver->dcache_kind = &dcache_kind;
+				real_driver->dcache_asi = &dcache_asi;
+				real_driver->dcache_context = &dcache_context;
+				real_driver->dcache_addr = &dcache_addr;
+				real_driver->dcache_data = &dcache_data;
+				real_driver->dcache_byte_mask = &dcache_byte_mask;
+				real_driver->dcache_resp_valid = &dcache_resp_valid;
+				real_driver->dcache_resp_mae = &dcache_resp_mae;
+				real_driver->dcache_resp_data = &dcache_resp_data;
+				real_driver->irq_level = &irq_level;
+				real_driver->coh_fill_kind = &coh_fill_kind;
+				real_driver->coh_fill_pa_line = &coh_fill_pa_line;
+				real_driver->coh_fill_va_line = &coh_fill_va_line;
+				real_driver->coh_icache_inval = &coh_icache_inval;
+				real_driver->coh_dcache_inval = &coh_dcache_inval;
+				real_driver->bind_testbench_boundary_ports(this);
+				real_driver->register_ports();
+				std::fprintf(stderr, "MOD-THREAD c%d t%d real AJIT mode slot=%d\n",
+					actual_core_id, actual_thread_id, slot_id);
+			} else if(real_mode) {
+				std::fprintf(stderr, "MOD-THREAD c%d t%d inactive for runtime threads/core=%d\n",
+					actual_core_id, actual_thread_id, runtime_threads_per_core);
+			}
+			initialized = true;
+		}
+
+		if(real_driver != nullptr) {
+			real_driver->run(current_time.toUint64());
+		}$;
+		if(this_phase==0) then
+			$if(state == 0) {
+				if(real_mode) {
+					/* Real-thread mode is handled above. */
+				} else {
+				bool ok = mod_push_bool(&dcache_valid, true) &&
+					mod_push_u8(&dcache_kind, 1) &&
+					mod_push_u8(&dcache_asi, 0x0a) &&
+					mod_push_u8(&dcache_context, 0) &&
+					mod_push_u32(&dcache_addr, synth_addr) &&
+					mod_push_u64(&dcache_data, 0) &&
+					mod_push_u8(&dcache_byte_mask, 0xff);
+				if(ok) {
+					std::fprintf(stderr, "MOD-THREAD c%d t%d issued synthetic load addr=0x%08x\n",
+						actual_core_id, actual_thread_id, synth_addr);
+					state = 1;
+				}
+				}
+			} else if(state == 1) {
+				bool ok = mod_pull_bool(&dcache_resp_valid, &resp_valid) &&
+					mod_pull_u8(&dcache_resp_mae, &resp_mae) &&
+					mod_pull_u64(&dcache_resp_data, &resp_data);
+				if(ok && resp_valid) {
+					std::fprintf(stderr, "MOD-THREAD c%d t%d response mae=%u data=0x%016llx\n",
+						actual_core_id, actual_thread_id, (unsigned) resp_mae, (unsigned long long) resp_data);
+					state = 2;
+				}
+			}$;
+		end if;
+		wait(0,1);
+	while(1) end do;
+end module

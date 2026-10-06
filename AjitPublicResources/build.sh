@@ -36,7 +36,7 @@ cd $CWD;
 # ajit_access_routines_mt (libajit*.a).
 echo "build tools/ajit_access_routines_mt";
 cd tools/ajit_access_routines_mt;
-export SPARC_SYSROOT="/home/Manoj/sparc64-sysroot/sparc64-multilib-linux-gnu/sysroot";
+export SPARC_SYSROOT="${AJIT_SPARC_SYSROOT_BASE:?Set AJIT_SPARC_SYSROOT_BASE to your SPARC sysroot}";
 export CFLAGS="--sysroot=$SPARC_SYSROOT";
 export CXXFLAGS="--sysroot=$SPARC_SYSROOT";
 export CPPFLAGS="--sysroot=$SPARC_SYSROOT";

@@ -1,0 +1,16 @@
+Linux serial boot smoke testcase for SiTAR regression.
+
+Behavior:
+
+- `build.sh` stages `../c-model/boot_loader_plus_kernel.mmap` as `main.mmap`
+- the registry entry supplies:
+  - `init_pc=0xf0000000`
+  - `AJIT_TIMER_TICK_DIV=10000`
+  - `AJIT_MEMORY_DELAY=0`
+- pass condition is console-marker based, not `main.results`
+
+Current pass milestone:
+
+- `running exec /sbin/init`
+- `Welcome to Buildroot`
+- `buildroot login:`

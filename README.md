@@ -130,23 +130,85 @@ To run the broader automated tests:
     ./verify.sh
 
 
-Sitar Simulator Flow
---------------------
+Simulator versions
+------------------
 
-The Sitar-based Ajit simulator port lives in
-`AjitPublicResources/processor/64bit/C_mc_mt_sitar`. Use the README in that
-directory as the source of truth for build, single-test, and regression usage.
+The repository contains three implementations, with two modes in the modular one:
 
-Typical commands are:
+| Version | Directory under `AjitPublicResources/processor/64bit/` | Mode |
+| --- | --- | --- |
+| Legacy C model | `C_multi_core_multi_thread` | pthread-based reference model |
+| First SiTAR implementation | `C_mc_mt_sitar` | original SiTAR port |
+| Modular SiTAR sync | `C_mc_mt_sitar_modular` | `AJIT_MODULAR_ASYNC=0` |
+| Modular SiTAR async | `C_mc_mt_sitar_modular` | `AJIT_MODULAR_ASYNC=1` |
 
-    source ./set_ajit_home
-    source ./ajit_env
-    cd $AJIT_HOME/AjitPublicResources/processor/64bit/C_mc_mt_sitar
-    ./build_sitar.sh
-    OMP_NUM_THREADS=4 OMP_PROC_BIND=close OMP_PLACES=cores ./run_regression_testcases_v2.sh all
+Complete the prerequisites and local setup above first. Set
+`AJIT_SPARC_SYSROOT_BASE` to your installed SPARC sysroot before sourcing
+`ajit_env`; `/usr/sparc64-linux-gnu` is the default. The simulator builds use
+host GCC/G++ with C++20 support (GCC 11 or newer), OpenMP, Python 3.6 or newer,
+and SCons. Compiling AJIT programs additionally needs the SPARC cross-compiler,
+32-bit libraries, and the Ajit tools built by `AjitPublicResources/build.sh`.
+SiTAR requires its own installation; see [SiTAR setup](docs/sitar-toolchain.md).
 
-See `AjitPublicResources/processor/64bit/C_mc_mt_sitar/README.md` for the
-complete workflow and testcase selection details.
+Start from the repository root and build a small test image:
+
+```bash
+source ./set_ajit_home
+source ./ajit_env
+(cd "$AJIT_HOME/tests/examples/func_call" && sh build.sh)
+```
+
+This generates `main.mmap`, `main.mmap.remapped`, and other build products;
+these are not simulator source files and are not committed.
+
+### Legacy C model
+
+If not already built by the local setup:
+
+```bash
+(cd "$AJIT_HOME/AjitPublicResources" &&
+ source ./reference_64bit_C_model_exports.sh &&
+ cd processor/64bit/C_multi_core_multi_thread && scons)
+(cd "$AJIT_HOME/tests/examples/func_call" && sh run_cmodel.sh)
+```
+
+The executable is `C_multi_core_multi_thread/testbench/bin/ajit_C_system_model`.
+Use `-n 1..4` for cores and `-t 1|2` for threads per core; `-m` selects an image,
+`-d -r` enables checking against expected results. See the
+[legacy model guide](AjitPublicResources/processor/64bit/C_multi_core_multi_thread/README).
+
+### First SiTAR implementation
+
+```bash
+cd "$AJIT_HOME/AjitPublicResources/processor/64bit/C_mc_mt_sitar"
+AJIT_NUM_CORES=1 AJIT_THREADS_PER_CORE=1 AJIT_ACTIVE_THREADS=1 \
+AJIT_TEST_MEMMAP="$AJIT_HOME/tests/examples/func_call/main.mmap.remapped" \
+AJIT_EXPECT_RESULTS_FILE="$AJIT_HOME/tests/examples/func_call/main.results" \
+OMP_NUM_THREADS=8 bash run_sitar_flow_real_thread.sh 400000
+```
+
+This builds, runs, and checks the test. For registry-driven tests, use
+`bash run_regression_testcases_v2.sh func_call,strcmp 400000`.
+The [first SiTAR guide](AjitPublicResources/processor/64bit/C_mc_mt_sitar/README.md)
+explains its runtime settings.
+
+### Modular SiTAR: sync and async
+
+Both modes use the same executable:
+
+```bash
+cd "$AJIT_HOME/AjitPublicResources/processor/64bit/C_mc_mt_sitar_modular"
+AJIT_NUM_CORES=1 bash build_sitar.sh
+# Synchronous mode:
+python3 tests_async/run_images.py --ids func_call --cores 1 --workers 8 --modes 0
+# Asynchronous mode:
+python3 tests_async/run_images.py --ids func_call --cores 1 --workers 8 --modes 1
+```
+
+Use `--modes 0,1` to check both. The runner selects the real CPU thread path,
+sets `AJIT_MODULAR_ASYNC`, and checks register/memory or console expectations.
+See the [modular guide](AjitPublicResources/processor/64bit/C_mc_mt_sitar_modular/README.md)
+for multicore builds, protocol tests, Dhrystone, and Linux.
 
 
 Important Files And Directories

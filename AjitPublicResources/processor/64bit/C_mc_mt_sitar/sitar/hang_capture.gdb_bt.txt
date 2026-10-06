@@ -1,3 +1,0 @@
-Process pid=2513087 exited before gdb attach.
-Exit code: 139
-No backtrace captured.

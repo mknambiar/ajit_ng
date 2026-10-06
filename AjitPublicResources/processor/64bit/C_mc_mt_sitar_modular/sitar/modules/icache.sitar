@@ -1,0 +1,190 @@
+// Per-core I-cache module.
+//
+// Owns I-cache tags/data for one core.
+// Arbitrates instruction fetch requests from up to two threads.
+// Sends translation/fill requests to the owning core's MMU module.
+
+module ICache
+	parameter int coreId = 0;
+	parameter int threadsPerCore = 1;
+
+	inport_array	thread_valid[threadsPerCore] : width 1
+	inport_array	thread_kind[threadsPerCore] : width 8
+	inport_array	thread_asi[threadsPerCore] : width 8
+	inport_array	thread_context[threadsPerCore] : width 8
+	inport_array	thread_addr[threadsPerCore] : width 32
+	outport_array	thread_resp_valid[threadsPerCore] : width 1
+	outport_array	thread_resp_mae[threadsPerCore] : width 8
+	outport_array	thread_resp_data[threadsPerCore] : width 64
+
+	outport	mmu_valid : width 1
+	outport	mmu_source : width 8
+	outport	mmu_thread_id : width 8
+	outport	mmu_command : width 8
+	outport	mmu_kind : width 8
+	outport	mmu_asi : width 8
+	outport	mmu_context : width 8
+	outport	mmu_addr : width 32
+	outport	mmu_data : width 64
+	outport	mmu_byte_mask : width 8
+	inport	mmu_resp_valid : width 1
+	inport	mmu_resp_mae : width 8
+	inport	mmu_resp_data : width 64
+	inport	mmu_resp_cacheable : width 8
+	inport	mmu_resp_acc : width 8
+	inport	mmu_resp_fsr : width 32
+	inport	mmu_resp_synonym : width 32
+	inport	mmu_resp_meta : width 64
+	include $extern "C" {
+		#include "modular_instance_id.h"
+	}
+	$
+	include $#include "modular_icache_adapter.h"
+#include "modular_async_cache.h"$
+
+	net pending_work : capacity 4 width 40
+	net idle_dispatch : capacity 1 width 40
+	net refill_results : capacity 2 width 80
+
+	decl $bool async_mode; bool initialized; int actual_core_id; int nextGrant; ModularIcacheAdapter* adapter; ModularAsyncCache* async_cache;$
+
+behavior
+	$async_mode = modular_async_enabled();$;
+	if(async_mode) then
+	$initialized = false; actual_core_id = coreId; nextGrant = 0; adapter = nullptr; async_cache = nullptr;$;
+		$if(!initialized) {
+			if(!modular_extract_first_index(hierarchicalId().c_str(), &actual_core_id)) {
+				actual_core_id = coreId;
+			}
+			adapter = new ModularIcacheAdapter;
+			adapter->init(actual_core_id, threadsPerCore);
+			for(int t = 0; t < threadsPerCore && t < 2; ++t) {
+				adapter->thread_valid[t] = &thread_valid[t];
+				adapter->thread_kind[t] = &thread_kind[t];
+				adapter->thread_asi[t] = &thread_asi[t];
+				adapter->thread_context[t] = &thread_context[t];
+				adapter->thread_addr[t] = &thread_addr[t];
+				adapter->thread_resp_valid[t] = &thread_resp_valid[t];
+				adapter->thread_resp_mae[t] = &thread_resp_mae[t];
+				adapter->thread_resp_data[t] = &thread_resp_data[t];
+			}
+			adapter->mmu_valid = &mmu_valid;
+			adapter->mmu_source = &mmu_source;
+			adapter->mmu_thread_id = &mmu_thread_id;
+			adapter->mmu_command = &mmu_command;
+			adapter->mmu_kind = &mmu_kind;
+			adapter->mmu_asi = &mmu_asi;
+			adapter->mmu_context = &mmu_context;
+			adapter->mmu_addr = &mmu_addr;
+			adapter->mmu_data = &mmu_data;
+			adapter->mmu_byte_mask = &mmu_byte_mask;
+			adapter->mmu_resp_valid = &mmu_resp_valid;
+			adapter->mmu_resp_mae = &mmu_resp_mae;
+			adapter->mmu_resp_data = &mmu_resp_data;
+			adapter->mmu_resp_cacheable = &mmu_resp_cacheable;
+			adapter->mmu_resp_acc = &mmu_resp_acc;
+			adapter->mmu_resp_fsr = &mmu_resp_fsr;
+			adapter->mmu_resp_synonym = &mmu_resp_synonym;
+			adapter->mmu_resp_meta = &mmu_resp_meta;
+			initialized = true;
+		}
+		if(modular_async_enabled()) {
+			async_cache = new ModularAsyncCache;
+			async_cache->init(adapter->cache, actual_core_id, threadsPerCore, true, &pending_work, &idle_dispatch, &refill_results);
+			for(int t=0;t<2;++t) {
+				async_cache->thread_valid[t] = adapter->thread_valid[t];
+				async_cache->thread_kind[t] = adapter->thread_kind[t];
+				async_cache->thread_asi[t] = adapter->thread_asi[t];
+				async_cache->thread_context[t] = adapter->thread_context[t];
+				async_cache->thread_addr[t] = adapter->thread_addr[t];
+				async_cache->thread_resp_valid[t] = adapter->thread_resp_valid[t];
+				async_cache->thread_resp_mae[t] = adapter->thread_resp_mae[t];
+				async_cache->thread_resp_data[t] = adapter->thread_resp_data[t];
+			}
+			async_cache->mmu_valid = adapter->mmu_valid;
+			async_cache->mmu_source = adapter->mmu_source;
+			async_cache->mmu_thread_id = adapter->mmu_thread_id;
+			async_cache->mmu_command = adapter->mmu_command;
+			async_cache->mmu_kind = adapter->mmu_kind;
+			async_cache->mmu_asi = adapter->mmu_asi;
+			async_cache->mmu_context = adapter->mmu_context;
+			async_cache->mmu_addr = adapter->mmu_addr;
+			async_cache->mmu_data = adapter->mmu_data;
+			async_cache->mmu_byte_mask = adapter->mmu_byte_mask;
+			async_cache->mmu_resp_valid = adapter->mmu_resp_valid;
+			async_cache->mmu_resp_mae = adapter->mmu_resp_mae;
+			async_cache->mmu_resp_data = adapter->mmu_resp_data;
+			async_cache->mmu_resp_cacheable = adapter->mmu_resp_cacheable;
+			async_cache->mmu_resp_acc = adapter->mmu_resp_acc;
+			async_cache->mmu_resp_fsr = adapter->mmu_resp_fsr;
+			async_cache->mmu_resp_synonym = adapter->mmu_resp_synonym;
+			async_cache->mmu_resp_meta = adapter->mmu_resp_meta;
+		}
+	$;
+	[
+		do
+			$async_cache->front(current_time.toUint64());$;
+			wait(0,1);
+		while(1) end do;
+	||
+		do
+			$async_cache->worker(current_time.toUint64());$;
+			wait(0,1);
+		while(1) end do;
+	];
+	else
+	$initialized = false; actual_core_id = coreId; nextGrant = 0; adapter = nullptr;$;
+	do
+		$if(!initialized) {
+			if(!modular_extract_first_index(hierarchicalId().c_str(), &actual_core_id)) {
+				actual_core_id = coreId;
+			}
+			adapter = new ModularIcacheAdapter;
+			adapter->init(actual_core_id, threadsPerCore);
+			for(int t = 0; t < threadsPerCore && t < 2; ++t) {
+				adapter->thread_valid[t] = &thread_valid[t];
+				adapter->thread_kind[t] = &thread_kind[t];
+				adapter->thread_asi[t] = &thread_asi[t];
+				adapter->thread_context[t] = &thread_context[t];
+				adapter->thread_addr[t] = &thread_addr[t];
+				adapter->thread_resp_valid[t] = &thread_resp_valid[t];
+				adapter->thread_resp_mae[t] = &thread_resp_mae[t];
+				adapter->thread_resp_data[t] = &thread_resp_data[t];
+			}
+			adapter->mmu_valid = &mmu_valid;
+			adapter->mmu_source = &mmu_source;
+			adapter->mmu_thread_id = &mmu_thread_id;
+			adapter->mmu_command = &mmu_command;
+			adapter->mmu_kind = &mmu_kind;
+			adapter->mmu_asi = &mmu_asi;
+			adapter->mmu_context = &mmu_context;
+			adapter->mmu_addr = &mmu_addr;
+			adapter->mmu_data = &mmu_data;
+			adapter->mmu_byte_mask = &mmu_byte_mask;
+			adapter->mmu_resp_valid = &mmu_resp_valid;
+			adapter->mmu_resp_mae = &mmu_resp_mae;
+			adapter->mmu_resp_data = &mmu_resp_data;
+			adapter->mmu_resp_cacheable = &mmu_resp_cacheable;
+			adapter->mmu_resp_acc = &mmu_resp_acc;
+			adapter->mmu_resp_fsr = &mmu_resp_fsr;
+			adapter->mmu_resp_synonym = &mmu_resp_synonym;
+			initialized = true;
+		}
+		if((current_time.toUint64() & 0x1ull) == 0 && adapter->idle()) {
+			int limit = (threadsPerCore < 2) ? threadsPerCore : 2;
+			if(limit < 1) {
+				limit = 1;
+			}
+			for(int offset = 0; offset < limit; ++offset) {
+				int selected = (nextGrant + offset) % limit;
+				if(adapter->try_accept_thread_request(selected)) {
+					nextGrant = (selected + 1) % limit;
+					break;
+				}
+			}
+		}
+		adapter->run(current_time.toUint64());$;
+		wait(0,1);
+	while(1) end do;
+	end if;
+end module

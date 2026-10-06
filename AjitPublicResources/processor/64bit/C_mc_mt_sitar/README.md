@@ -21,7 +21,8 @@ source ./set_ajit_home
 source ./ajit_env
 ```
 
-The Sitar toolchain must already be installed and available on `PATH`
+Install the [pinned SiTAR toolchain](../../../../docs/sitar-toolchain.md) first.
+The Sitar toolchain must be available on `PATH`
 (`sitar translate`, `sitar compile`).
 
 The host compiler used for the Sitar build should be a recent `gcc`/`g++`.

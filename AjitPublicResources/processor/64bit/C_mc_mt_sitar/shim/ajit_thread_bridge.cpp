@@ -904,6 +904,19 @@ extern "C" void ajit_thread_bridge_dump_summary(void)
                  (unsigned long long) ts->dcache->number_of_bypasses,
                  (unsigned long long) ts->dcache->number_of_flushes,
                  ts->dcache->number_of_locked_accesses);
+    std::fprintf(stderr,
+                 "BRIDGE-THREAD-STATS t%d c%u instructions=%llu traps=%u cti=%u "
+                 "bp-mispredicts=%u ras-push=%u ras-pop=%u ras-mispredicts=%u "
+                 "cycle-estimate=%llu\n",
+                 id, ts->core_id,
+                 (unsigned long long) ts->num_instructions_executed,
+                 (unsigned) ts->num_traps,
+                 (unsigned) ts->branch_predictor.branch_count,
+                 (unsigned) ts->branch_predictor.mispredicts,
+                 (unsigned) ts->return_address_stack.push_count,
+                 (unsigned) ts->return_address_stack.pop_count,
+                 (unsigned) ts->return_address_stack.mispredicts,
+                 (unsigned long long) getCycleEstimate(ts));
   }
   for (int id = 0; id < 8; ++id) {
     ThreadState* ts = g_threads[id];

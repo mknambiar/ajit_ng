@@ -1,0 +1,18 @@
+# Fixed markers; each line must appear unless count is specified.
+# DHRYSTONE_ITERS is expanded by run_regression_testcases_v2.sh.
+Execution ends|count=2
+Number_Of_Runs=${DHRYSTONE_ITERS:-100}|count=2
+Dhrystones per Second:|count=2
+Int_Glob:            5|count=2
+Bool_Glob:           1|count=2
+Ch_1_Glob:           65|count=2
+Ch_2_Glob:           66|count=2
+Arr_1_Glob[8]:       7|count=2
+Arr_2_Glob[8][7]:    $(( ${DHRYSTONE_ITERS:-100} + 10 ))|count=2
+Int_1_Loc:           5|count=2
+Int_2_Loc:           13|count=2
+Int_3_Loc:           7|count=2
+Enum_Loc:            1|count=2
+DHRYSTONE PROGRAM, SOME STRING|count=8
+DHRYSTONE PROGRAM, 1'ST STRING|count=4
+DHRYSTONE PROGRAM, 2'ND STRING|count=4

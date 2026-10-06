@@ -1,0 +1,235 @@
+module TestBench
+
+	submodule_array T[2] : AjitThread<0, 0>
+	submodule IC : ICache<0, 2>
+	submodule DC : DCache<0, 2>
+	submodule MMU0 : MMU<0>
+
+	inport	data_in: width 64
+	inport	irq_level: width 8
+	outport active : width 1
+	outport	write : width 1
+	outport	addr_out	: width 32
+	outport	data_out : width 64
+	outport	byte_mask : width 8
+	outport	coh_fill_kind : width 8
+	outport	coh_fill_pa_line : width 32
+	outport	coh_fill_va_line : width 32
+	inport	coh_icache_inval : width 32
+	inport	coh_dcache_inval : width 32
+
+	net data_in_n : capacity 1 width 64
+	net irq_level_n : capacity 1 width 8
+	net active_n : capacity 1 width 1
+	net write_n : capacity 1 width 1
+	net addr_out_n : capacity 1 width 32
+	net data_out_n : capacity 1 width 64
+	net byte_mask_n : capacity 1 width 8
+	net coh_fill_kind_n : capacity 1 width 8
+	net coh_fill_pa_line_n : capacity 1 width 32
+	net coh_fill_va_line_n : capacity 1 width 32
+	net coh_icache_inval_n : capacity 64 width 32
+	net coh_dcache_inval_n : capacity 64 width 32
+
+	net_array t_ic_valid[2] : capacity 1 width 1
+	net_array t_ic_kind[2] : capacity 1 width 8
+	net_array t_ic_asi[2] : capacity 1 width 8
+	net_array t_ic_context[2] : capacity 1 width 8
+	net_array t_ic_addr[2] : capacity 1 width 32
+	net_array ic_t_resp_valid[2] : capacity 1 width 1
+	net_array ic_t_resp_mae[2] : capacity 1 width 8
+	net_array ic_t_resp_data[2] : capacity 1 width 64
+
+	net_array t_dc_valid[2] : capacity 1 width 1
+	net_array t_dc_kind[2] : capacity 1 width 8
+	net_array t_dc_asi[2] : capacity 1 width 8
+	net_array t_dc_context[2] : capacity 1 width 8
+	net_array t_dc_addr[2] : capacity 1 width 32
+	net_array t_dc_data[2] : capacity 1 width 64
+	net_array t_dc_bm[2] : capacity 1 width 8
+	net_array dc_t_resp_valid[2] : capacity 1 width 1
+	net_array dc_t_resp_mae[2] : capacity 1 width 8
+	net_array dc_t_resp_data[2] : capacity 1 width 64
+
+	net ic_mmu_valid : capacity 1 width 1
+	net ic_mmu_source : capacity 1 width 8
+	net ic_mmu_thread_id : capacity 1 width 8
+	net ic_mmu_command : capacity 1 width 8
+	net ic_mmu_kind : capacity 1 width 8
+	net ic_mmu_asi : capacity 1 width 8
+	net ic_mmu_context : capacity 1 width 8
+	net ic_mmu_addr : capacity 1 width 32
+	net ic_mmu_data : capacity 1 width 64
+	net ic_mmu_bm : capacity 1 width 8
+	net mmu_ic_resp_valid : capacity 1 width 1
+	net mmu_ic_resp_mae : capacity 1 width 8
+	net mmu_ic_resp_data : capacity 1 width 64
+	net mmu_ic_resp_cacheable : capacity 1 width 8
+	net mmu_ic_resp_acc : capacity 1 width 8
+	net mmu_ic_resp_fsr : capacity 1 width 32
+	net mmu_ic_resp_synonym : capacity 1 width 32
+	net mmu_ic_resp_meta : capacity 1 width 64
+
+	net dc_mmu_valid : capacity 1 width 1
+	net dc_mmu_source : capacity 1 width 8
+	net dc_mmu_thread_id : capacity 1 width 8
+	net dc_mmu_command : capacity 1 width 8
+	net dc_mmu_kind : capacity 1 width 8
+	net dc_mmu_asi : capacity 1 width 8
+	net dc_mmu_context : capacity 1 width 8
+	net dc_mmu_addr : capacity 1 width 32
+	net dc_mmu_data : capacity 1 width 64
+	net dc_mmu_bm : capacity 1 width 8
+	net mmu_dc_resp_valid : capacity 1 width 1
+	net mmu_dc_resp_mae : capacity 1 width 8
+	net mmu_dc_resp_data : capacity 1 width 64
+	net mmu_dc_resp_cacheable : capacity 1 width 8
+	net mmu_dc_resp_acc : capacity 1 width 8
+	net mmu_dc_resp_fsr : capacity 1 width 32
+	net mmu_dc_resp_synonym : capacity 1 width 32
+	net mmu_dc_resp_meta : capacity 1 width 64
+
+	data_in <= data_in_n
+	irq_level <= irq_level_n
+	active => active_n
+	write => write_n
+	addr_out => addr_out_n
+	data_out => data_out_n
+	byte_mask => byte_mask_n
+	coh_fill_kind => coh_fill_kind_n
+	coh_fill_pa_line => coh_fill_pa_line_n
+	coh_fill_va_line => coh_fill_va_line_n
+	coh_icache_inval <= coh_icache_inval_n
+	coh_dcache_inval <= coh_dcache_inval_n
+
+	for t in 0 to 1
+		T[t].ifetch_valid => t_ic_valid[t]
+		T[t].ifetch_kind => t_ic_kind[t]
+		T[t].ifetch_asi => t_ic_asi[t]
+		T[t].ifetch_context => t_ic_context[t]
+		T[t].ifetch_addr => t_ic_addr[t]
+		T[t].ifetch_resp_valid <= ic_t_resp_valid[t]
+		T[t].ifetch_resp_mae <= ic_t_resp_mae[t]
+		T[t].ifetch_resp_data <= ic_t_resp_data[t]
+
+		T[t].dcache_valid => t_dc_valid[t]
+		T[t].dcache_kind => t_dc_kind[t]
+		T[t].dcache_asi => t_dc_asi[t]
+		T[t].dcache_context => t_dc_context[t]
+		T[t].dcache_addr => t_dc_addr[t]
+		T[t].dcache_data => t_dc_data[t]
+		T[t].dcache_byte_mask => t_dc_bm[t]
+		T[t].dcache_resp_valid <= dc_t_resp_valid[t]
+		T[t].dcache_resp_mae <= dc_t_resp_mae[t]
+		T[t].dcache_resp_data <= dc_t_resp_data[t]
+		T[t].irq_level <= irq_level_n
+		T[t].coh_fill_kind => coh_fill_kind_n
+		T[t].coh_fill_pa_line => coh_fill_pa_line_n
+		T[t].coh_fill_va_line => coh_fill_va_line_n
+		T[t].coh_icache_inval <= coh_icache_inval_n
+		T[t].coh_dcache_inval <= coh_dcache_inval_n
+
+		IC.thread_valid[t] <= t_ic_valid[t]
+		IC.thread_kind[t] <= t_ic_kind[t]
+		IC.thread_asi[t] <= t_ic_asi[t]
+		IC.thread_context[t] <= t_ic_context[t]
+		IC.thread_addr[t] <= t_ic_addr[t]
+		IC.thread_resp_valid[t] => ic_t_resp_valid[t]
+		IC.thread_resp_mae[t] => ic_t_resp_mae[t]
+		IC.thread_resp_data[t] => ic_t_resp_data[t]
+
+		DC.thread_valid[t] <= t_dc_valid[t]
+		DC.thread_kind[t] <= t_dc_kind[t]
+		DC.thread_asi[t] <= t_dc_asi[t]
+		DC.thread_context[t] <= t_dc_context[t]
+		DC.thread_addr[t] <= t_dc_addr[t]
+		DC.thread_data[t] <= t_dc_data[t]
+		DC.thread_byte_mask[t] <= t_dc_bm[t]
+		DC.thread_resp_valid[t] => dc_t_resp_valid[t]
+		DC.thread_resp_mae[t] => dc_t_resp_mae[t]
+		DC.thread_resp_data[t] => dc_t_resp_data[t]
+	end for
+
+	IC.mmu_valid => ic_mmu_valid
+	IC.mmu_source => ic_mmu_source
+	IC.mmu_thread_id => ic_mmu_thread_id
+	IC.mmu_command => ic_mmu_command
+	IC.mmu_kind => ic_mmu_kind
+	IC.mmu_asi => ic_mmu_asi
+	IC.mmu_context => ic_mmu_context
+	IC.mmu_addr => ic_mmu_addr
+	IC.mmu_data => ic_mmu_data
+	IC.mmu_byte_mask => ic_mmu_bm
+	IC.mmu_resp_valid <= mmu_ic_resp_valid
+	IC.mmu_resp_mae <= mmu_ic_resp_mae
+	IC.mmu_resp_data <= mmu_ic_resp_data
+	IC.mmu_resp_cacheable <= mmu_ic_resp_cacheable
+	IC.mmu_resp_acc <= mmu_ic_resp_acc
+	IC.mmu_resp_fsr <= mmu_ic_resp_fsr
+	IC.mmu_resp_synonym <= mmu_ic_resp_synonym
+	IC.mmu_resp_meta <= mmu_ic_resp_meta
+
+	DC.mmu_valid => dc_mmu_valid
+	DC.mmu_source => dc_mmu_source
+	DC.mmu_thread_id => dc_mmu_thread_id
+	DC.mmu_command => dc_mmu_command
+	DC.mmu_kind => dc_mmu_kind
+	DC.mmu_asi => dc_mmu_asi
+	DC.mmu_context => dc_mmu_context
+	DC.mmu_addr => dc_mmu_addr
+	DC.mmu_data => dc_mmu_data
+	DC.mmu_byte_mask => dc_mmu_bm
+	DC.mmu_resp_valid <= mmu_dc_resp_valid
+	DC.mmu_resp_mae <= mmu_dc_resp_mae
+	DC.mmu_resp_data <= mmu_dc_resp_data
+	DC.mmu_resp_cacheable <= mmu_dc_resp_cacheable
+	DC.mmu_resp_acc <= mmu_dc_resp_acc
+	DC.mmu_resp_fsr <= mmu_dc_resp_fsr
+	DC.mmu_resp_synonym <= mmu_dc_resp_synonym
+	DC.mmu_resp_meta <= mmu_dc_resp_meta
+
+	MMU0.icache_valid <= ic_mmu_valid
+	MMU0.icache_source <= ic_mmu_source
+	MMU0.icache_thread_id <= ic_mmu_thread_id
+	MMU0.icache_command <= ic_mmu_command
+	MMU0.icache_kind <= ic_mmu_kind
+	MMU0.icache_asi <= ic_mmu_asi
+	MMU0.icache_context <= ic_mmu_context
+	MMU0.icache_addr <= ic_mmu_addr
+	MMU0.icache_data <= ic_mmu_data
+	MMU0.icache_byte_mask <= ic_mmu_bm
+	MMU0.icache_resp_valid => mmu_ic_resp_valid
+	MMU0.icache_resp_mae => mmu_ic_resp_mae
+	MMU0.icache_resp_data => mmu_ic_resp_data
+	MMU0.icache_resp_cacheable => mmu_ic_resp_cacheable
+	MMU0.icache_resp_acc => mmu_ic_resp_acc
+	MMU0.icache_resp_fsr => mmu_ic_resp_fsr
+	MMU0.icache_resp_synonym => mmu_ic_resp_synonym
+	MMU0.icache_resp_meta => mmu_ic_resp_meta
+
+	MMU0.dcache_valid <= dc_mmu_valid
+	MMU0.dcache_source <= dc_mmu_source
+	MMU0.dcache_thread_id <= dc_mmu_thread_id
+	MMU0.dcache_command <= dc_mmu_command
+	MMU0.dcache_kind <= dc_mmu_kind
+	MMU0.dcache_asi <= dc_mmu_asi
+	MMU0.dcache_context <= dc_mmu_context
+	MMU0.dcache_addr <= dc_mmu_addr
+	MMU0.dcache_data <= dc_mmu_data
+	MMU0.dcache_byte_mask <= dc_mmu_bm
+	MMU0.dcache_resp_valid => mmu_dc_resp_valid
+	MMU0.dcache_resp_mae => mmu_dc_resp_mae
+	MMU0.dcache_resp_data => mmu_dc_resp_data
+	MMU0.dcache_resp_cacheable => mmu_dc_resp_cacheable
+	MMU0.dcache_resp_acc => mmu_dc_resp_acc
+	MMU0.dcache_resp_fsr => mmu_dc_resp_fsr
+	MMU0.dcache_resp_synonym => mmu_dc_resp_synonym
+	MMU0.dcache_resp_meta => mmu_dc_resp_meta
+
+	MMU0.bridge_valid => active_n
+	MMU0.bridge_write => write_n
+	MMU0.bridge_addr => addr_out_n
+	MMU0.bridge_data => data_out_n
+	MMU0.bridge_byte_mask => byte_mask_n
+	MMU0.bridge_resp_data <= data_in_n
+end module

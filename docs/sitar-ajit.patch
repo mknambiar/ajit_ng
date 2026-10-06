@@ -1,0 +1,42 @@
+--- a/compiler/SConstruct
++++ b/compiler/SConstruct
+@@ -16,7 +16,7 @@
+ COMPILE_TO_SHARED_LIBRARY 			= False	
+ COMPILE_STATIC_VERSION				= False
+ COMPILE_FOR_32_bit				= False
+-ADDITIONAL_FLAGS				= "-Wno-implicit-fallthrough" # " -std=c++0x"
++ADDITIONAL_FLAGS				= "-Wno-implicit-fallthrough " # " -std=c++0x"
+ #------------------------------------------------------------
+ 
+ 
+@@ -76,6 +76,9 @@
+ for item in DIRS:  
+ 	Source.append(Glob(item+"/*.cpp"))
+ 
++for item in DIRS:
++	Source.append(Glob(item+"/*.c"))
++
+ #paths to header files
+ Cpppath=[SITAR_INSTALLATION_DIR+"core/"]
+ for item in DIRS: 
+@@ -92,7 +95,7 @@
+ 
+ 
+ # Define compilation settings : 
+-env = Environment()
++env = Environment(ENV=dict(os.environ))
+ Libs=[]
+ Libpath=[]
+ 
+--- a/translator/parser/SConstruct
++++ b/translator/parser/SConstruct
+@@ -3,7 +3,8 @@
+ # executable for the SiTAR translator.
+ 
+ 
+-env = Environment(CC='g++')
++import os
++env = Environment(CC='g++', ENV=dict(os.environ))
+ #env.Append(CCFLAGS =  '-m32')  # create a 32bit executable
+ #env.Append(CCFLAGS =  '-pthread')
+ env.Append(CCFLAGS =  '-g')

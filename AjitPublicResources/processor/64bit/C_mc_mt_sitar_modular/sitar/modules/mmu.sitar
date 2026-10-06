@@ -1,0 +1,128 @@
+// Placeholder for per-core MMU module.
+//
+// Owns MmuState and TLB state for one core.
+// Arbitrates I-cache and D-cache clients.
+// Sends physical memory/peripheral requests to the global bridge.
+
+module MMU
+	parameter int coreId = 0;
+
+	inport	icache_valid : width 1
+	inport	icache_source : width 8
+	inport	icache_thread_id : width 8
+	inport	icache_command : width 8
+	inport	icache_kind : width 8
+	inport	icache_asi : width 8
+	inport	icache_context : width 8
+	inport	icache_addr : width 32
+	inport	icache_data : width 64
+	inport	icache_byte_mask : width 8
+	outport	icache_resp_valid : width 1
+	outport	icache_resp_mae : width 8
+	outport	icache_resp_data : width 64
+	outport	icache_resp_cacheable : width 8
+	outport	icache_resp_acc : width 8
+	outport	icache_resp_fsr : width 32
+	outport	icache_resp_synonym : width 32
+	outport	icache_resp_meta : width 64
+
+	inport	dcache_valid : width 1
+	inport	dcache_source : width 8
+	inport	dcache_thread_id : width 8
+	inport	dcache_command : width 8
+	inport	dcache_kind : width 8
+	inport	dcache_asi : width 8
+	inport	dcache_context : width 8
+	inport	dcache_addr : width 32
+	inport	dcache_data : width 64
+	inport	dcache_byte_mask : width 8
+	outport	dcache_resp_valid : width 1
+	outport	dcache_resp_mae : width 8
+	outport	dcache_resp_data : width 64
+	outport	dcache_resp_cacheable : width 8
+	outport	dcache_resp_acc : width 8
+	outport	dcache_resp_fsr : width 32
+	outport	dcache_resp_synonym : width 32
+	outport	dcache_resp_meta : width 64
+
+	outport	bridge_valid : width 1
+	outport	bridge_write : width 1
+	outport	bridge_addr : width 32
+	outport	bridge_data : width 64
+	outport	bridge_byte_mask : width 8
+	inport	bridge_resp_data : width 64
+	include $extern "C" {
+		#include "modular_instance_id.h"
+	}
+	$
+	include $#include "modular_mmu_adapter.h"$
+
+	decl $bool initialized; int actual_core_id; int nextClient; ModularMmuAdapter* adapter;$
+
+behavior
+	$initialized = false; actual_core_id = coreId; nextClient = 0; adapter = nullptr;$;
+	do
+		$if(!initialized) {
+			if(!modular_extract_first_index(hierarchicalId().c_str(), &actual_core_id)) {
+				actual_core_id = coreId;
+			}
+			adapter = new ModularMmuAdapter;
+			adapter->init(actual_core_id);
+			adapter->icache_valid = &icache_valid;
+			adapter->icache_source = &icache_source;
+			adapter->icache_thread_id = &icache_thread_id;
+			adapter->icache_command = &icache_command;
+			adapter->icache_kind = &icache_kind;
+			adapter->icache_asi = &icache_asi;
+			adapter->icache_context = &icache_context;
+			adapter->icache_addr = &icache_addr;
+			adapter->icache_data = &icache_data;
+			adapter->icache_byte_mask = &icache_byte_mask;
+			adapter->icache_resp_valid = &icache_resp_valid;
+			adapter->icache_resp_mae = &icache_resp_mae;
+			adapter->icache_resp_data = &icache_resp_data;
+			adapter->icache_resp_cacheable = &icache_resp_cacheable;
+			adapter->icache_resp_acc = &icache_resp_acc;
+			adapter->icache_resp_fsr = &icache_resp_fsr;
+			adapter->icache_resp_synonym = &icache_resp_synonym;
+			adapter->icache_resp_meta = &icache_resp_meta;
+			adapter->dcache_valid = &dcache_valid;
+			adapter->dcache_source = &dcache_source;
+			adapter->dcache_thread_id = &dcache_thread_id;
+			adapter->dcache_command = &dcache_command;
+			adapter->dcache_kind = &dcache_kind;
+			adapter->dcache_asi = &dcache_asi;
+			adapter->dcache_context = &dcache_context;
+			adapter->dcache_addr = &dcache_addr;
+			adapter->dcache_data = &dcache_data;
+			adapter->dcache_byte_mask = &dcache_byte_mask;
+			adapter->dcache_resp_valid = &dcache_resp_valid;
+			adapter->dcache_resp_mae = &dcache_resp_mae;
+			adapter->dcache_resp_data = &dcache_resp_data;
+			adapter->dcache_resp_cacheable = &dcache_resp_cacheable;
+			adapter->dcache_resp_acc = &dcache_resp_acc;
+			adapter->dcache_resp_fsr = &dcache_resp_fsr;
+			adapter->dcache_resp_synonym = &dcache_resp_synonym;
+			adapter->dcache_resp_meta = &dcache_resp_meta;
+			adapter->bridge_valid = &bridge_valid;
+			adapter->bridge_write = &bridge_write;
+			adapter->bridge_addr = &bridge_addr;
+			adapter->bridge_data = &bridge_data;
+			adapter->bridge_byte_mask = &bridge_byte_mask;
+			adapter->bridge_resp_data = &bridge_resp_data;
+			adapter->bind_testbench_bridge_ports(this);
+			initialized = true;
+		}
+		if((current_time.toUint64() & 0x1ull) == 0 && adapter->idle()) {
+			for(int offset = 0; offset < 2; ++offset) {
+				int selected = (nextClient + offset) % 2;
+				if(adapter->try_accept_client_request(selected)) {
+					nextClient = (selected + 1) % 2;
+					break;
+				}
+			}
+		}
+		adapter->run(current_time.toUint64());$;
+		wait(0,1);
+	while(1) end do;
+end module

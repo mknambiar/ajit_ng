@@ -32,7 +32,7 @@ export AJIT_DEBUG_MONITOR_MT_DIR="$AJIT_TOOLS_DIR/ajit_debug_monitor_mt"
 
 # Active SPARC builds use the system-installed sparc64-linux-gnu toolchain
 # plus an external SPARC sysroot when available.
-export AJIT_SPARC_SYSROOT_BASE="${AJIT_SPARC_SYSROOT_BASE:-/home/Manoj/sparc64-sysroot/sparc64-multilib-linux-gnu/sysroot}";
+export AJIT_SPARC_SYSROOT_BASE="${AJIT_SPARC_SYSROOT_BASE:-/usr/sparc64-linux-gnu}";
 export AJIT_UCLIBC_DIR="$AJIT_SPARC_SYSROOT_BASE/usr";
 
 export AJIT_CORTOS_DIR="$AJIT_HOME/os/rtos/cortos";
