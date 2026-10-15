@@ -1,5 +1,6 @@
 #include <atomic>
 #include "ajit_thread_bridge.h"
+#include "modular_packet_helpers.h"
 
 #include <cstdio>
 #include <cstring>
@@ -60,6 +61,8 @@ extern "C" void modular_dcache_dump_summary(void) __attribute__((weak));
 extern "C" void modular_mmu_dump_summary(void) __attribute__((weak));
 extern "C" void modular_async_cache_dump_summary(void) __attribute__((weak));
 extern "C" int modular_async_buffered_stores_pending(void) __attribute__((weak));
+extern "C" int modular_icache_get_counters(int, uint64_t*, uint64_t*, uint64_t*) __attribute__((weak));
+extern "C" int modular_dcache_get_counters(int, uint64_t*, uint64_t*, uint64_t*, uint64_t*, uint64_t*) __attribute__((weak));
 static std::atomic<int> g_deferred_ta0_stop_mode{0};
 
 static constexpr int kMaxCores = 4;
@@ -891,6 +894,57 @@ StepTaskT<int> ajit_thread_bridge_step_task(CoroutineOwner* owner, int id, uint6
   co_return ok;
 }
 
+// Reporting only: no running counters or changes to the simulated clock.
+// Cache accesses include maintenance requests, which also cross this interface,
+// but exclude instruction-buffer hits and individual refill beats.
+static void dump_interface_adjusted_timing(uint64_t simulated_cycles)
+{
+  const bool async = modular_async_enabled();
+  const char* mode = async ? "async" : "sync";
+  const char* reason = nullptr;
+  const char* real = std::getenv("AJIT_MODULAR_REAL_THREAD");
+  int active_count = 0, slot = -1;
+  for (int id = 0; id < kMaxSlots; ++id) {
+    if (g_slot_valid[id] && is_slot_active(id)) { ++active_count; slot = id; }
+  }
+  uint64_t icache_accesses = 0, dcache_accesses = 0;
+  if (!real || !real[0] || std::strcmp(real, "0") == 0)
+    reason = "real-thread-disabled";
+  else if (active_count != 1)
+    reason = "overlapping-threads";
+  else if (!g_runtime_seen[slot] || !g_runtime_done[slot] || !g_ta0_stop_issued)
+    // Budget stops can leave a counted request unfinished. Continuing after
+    // TA0 also mixes counters from after the reported retirement endpoint.
+    reason = "requires-completed-ta0-stop";
+  else if (!async)
+    // Sync uses same-phase producer/consumer operations. A fixed two-cycle
+    // deduction is not justified by its scheduling-dependent hit latency.
+    reason = "sync-handover-not-fixed";
+  else if (!modular_icache_get_counters || !modular_dcache_get_counters ||
+           !modular_icache_get_counters(g_slot_core[slot], &icache_accesses, nullptr, nullptr) ||
+           !modular_dcache_get_counters(g_slot_core[slot], &dcache_accesses,
+                                        nullptr, nullptr, nullptr, nullptr))
+    reason = "cache-counters-unavailable";
+  // Check the subtraction budget without overflowing the sum or product.
+  else if (icache_accesses > simulated_cycles / 2 ||
+           dcache_accesses > simulated_cycles / 2 - icache_accesses)
+    reason = "overhead-exceeds-runtime";
+
+  if (reason) {
+    std::fprintf(stderr, "BRIDGE-TIMING mode=%s simulated-cycles=%llu "
+                 "interface-adjusted-cycles=unavailable reason=%s\n",
+                 mode, (unsigned long long) simulated_cycles, reason);
+    return;
+  }
+  const uint64_t overhead = 2 * (icache_accesses + dcache_accesses);
+  std::fprintf(stderr, "BRIDGE-TIMING mode=%s status=estimate simulated-cycles=%llu "
+               "icache-accesses=%llu dcache-accesses=%llu cycles-per-access=2 "
+               "estimated-interface-overhead=%llu interface-adjusted-cycles=%llu\n",
+               mode, (unsigned long long) simulated_cycles,
+               (unsigned long long) icache_accesses, (unsigned long long) dcache_accesses,
+               (unsigned long long) overhead, (unsigned long long) (simulated_cycles - overhead));
+}
+
 extern "C" void ajit_thread_bridge_dump_summary(void)
 {
   if (!(makeCoreState && setThreadSitarSimTime)) {
@@ -976,6 +1030,7 @@ extern "C" void ajit_thread_bridge_dump_summary(void)
   std::fprintf(stderr,
                "BRIDGE-RUNTIME total cycles=%llu\n",
                (unsigned long long) max_runtime_cycles);
+  dump_interface_adjusted_timing(max_runtime_cycles);
   dump_selected_memory_words("END");
   if (ajit_step_get_contention_counters) {
     uint64_t icache_busy[4] = {};

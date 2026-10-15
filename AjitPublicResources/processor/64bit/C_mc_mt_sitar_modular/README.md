@@ -102,3 +102,41 @@ The validated implementation passed 598 image executions across sync and async:
 Linux used the different budgets above; these results are not a matched-budget
 performance comparison. Async idle misses take one additional cycle before MMU
 dispatch after the phase correction; immediate read-hit latency is unchanged.
+
+## Interface-adjusted timing estimate
+
+The end-of-run `BRIDGE-TIMING` line supplements the original
+`BRIDGE-RUNTIME total cycles` value; it does not change execution or the clock.
+For a completed, single-active-thread **async** run stopped at TA0, it reports:
+
+```text
+estimated-interface-overhead = 2 * (icache-accesses + dcache-accesses)
+interface-adjusted-cycles = simulated-cycles - estimated-interface-overhead
+```
+
+Counts come from the existing modular cache counters, once for the active core.
+They include maintenance requests crossing the interface, but not instruction
+buffer hits or individual refill beats. No running counters are added. This is
+an estimate removing the nominal outer CPU/cache handover cost; it does not
+remove internal miss-path handovers, recalculate contention, or predict FPGA
+pipeline throughput.
+
+A numeric estimate is withheld for overlapping active threads, budget stops,
+execution continuing after TA0, unavailable counters, or a subtraction exceeding
+the recorded runtime. It is also withheld in **sync** mode: that path uses
+same-phase producers/consumers, and does not establish a uniform two-cycle
+increment. A sync IFETCH hit in the focused trace took three half-cycle ticks
+from publication to response; its instruction-start spacing was two CPU cycles,
+versus three for async. Applying the same two-cycle deduction would therefore
+misstate the sync instruction-fetch overhead. Existing access totals cannot
+resolve the phase/scheduling differences for arbitrary sync runs.
+
+To compare reporting and behavior against a saved pre-change binary after a
+one-core build (requires the existing `func_call` image):
+
+```bash
+python3 tests_async/check_interface_timing.py --baseline /path/to/old/sitar_sim
+```
+
+This checks the report and compares original runtime, register results and cache
+summaries for eight completed/incomplete/single-thread/two-thread scenarios.
